@@ -7,5 +7,5 @@
   "link_github": false,
   "update_catalog": false,
   "description": "DigiCert CertCentral plugin for the AnyCA Gateway framework",
-  "gateway_framework": "10.x.x"
+  "gateway_framework": "1.0.0"
 }
