@@ -1,11 +1,11 @@
 {
   "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
   "integration_type": "ca-gateway",
-  "name": "<Gateway Name Here>",
+  "name": "DigiCert CertCentral Gateway",
   "status": "prototype",
   "support_level": "community",
   "link_github": false,
   "update_catalog": false,
-  "description": "<Description Here>",
+  "description": "DigiCert CertCentral plugin for the AnyCA Gateway framework",
   "gateway_framework": "10.x.x"
 }
