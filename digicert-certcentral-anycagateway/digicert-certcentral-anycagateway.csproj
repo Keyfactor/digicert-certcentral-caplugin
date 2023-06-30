@@ -9,11 +9,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Keyfactor.AnyGateway.ICAConnector" Version="1.0.0-PRERELEASE-37710" />
     <PackageReference Include="Keyfactor.Common" Version="2.3.7" />
     <PackageReference Include="Keyfactor.Logging" Version="1.1.1" />
     <PackageReference Include="Keyfactor.PKI" Version="5.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Keyfactor.AnyGateway.ICAConnector">
+      <HintPath>..\Keyfactor.AnyGateway.ICAConnector.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>
