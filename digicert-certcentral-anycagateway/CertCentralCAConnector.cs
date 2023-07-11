@@ -4,6 +4,7 @@ using Keyfactor.Extensions.CAGateway.DigiCert.API;
 using Keyfactor.Extensions.CAGateway.DigiCert.Client;
 using Keyfactor.Extensions.CAGateway.DigiCert.Models;
 using Keyfactor.Logging;
+using Keyfactor.PKI.Enums;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -375,7 +376,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 			string certificate = null;
 			int status = GetCertificateStatusFromCA(certToCheck.status, orderId);
-			if (status == (int)RequestDisposition.ISSUED || status == (int)RequestDisposition.REVOKED || status == (int)RequestDisposition.UNKNOWN)
+			if (status == (int)EndEntityStatus.GENERATED || status == (int)EndEntityStatus.REVOKED)
 			{
 				// We have a status where there may be a cert to download, try to download it
 				CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest(certId));
@@ -519,7 +520,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				_logger.LogError(errMsg);
 				throw new Exception(errMsg);
 			}
-			return (int)RequestDisposition.REVOKED;
+			return (int)EndEntityStatus.REVOKED;
 		}
 
 		/// <summary>
@@ -768,7 +769,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		/// </summary>
 		private async Task<EnrollmentResult> ExtractEnrollmentResult(CertCentralClient client, OrderResponse orderResponse, string commonName)
 		{
-			int status = (int)RequestDisposition.UNKNOWN;
+			int status = 0;
 			string statusMessage = null;
 			string certificate = null;
 			string caRequestID = null;
@@ -777,7 +778,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			{
 				_logger.LogError($"Error from CertCentral client: {orderResponse.Errors.First().message}");
 
-				status = (int)RequestDisposition.FAILED;
+				status = (int)EndEntityStatus.FAILED;
 				statusMessage = orderResponse.Errors[0].message;
 			}
 			else if (orderResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
@@ -837,12 +838,12 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 							caRequestID = orderResponse.OrderId.ToString();
 							if (updateStatusResponse.Errors.Any(x => x.code == "access_denied|invalid_approver"))
 							{
-								status = (int)RequestDisposition.EXTERNAL_VALIDATION;
+								status = (int)EndEntityStatus.EXTERNALVALIDATION;
 								statusMessage = errors;
 							}
 							else
 							{
-								status = (int)RequestDisposition.FAILED;
+								status = (int)EndEntityStatus.FAILED;
 								statusMessage = $"Approval of order '{orderResponse.OrderId}' failed. Check the gateway logs for more details.";
 							}
 						}
@@ -864,7 +865,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 								catch (Exception getRecordEx)
 								{
 									_logger.LogWarning($"Unable to retrieve certificate {order.certificate.id} for order {order.id}: {getRecordEx.Message}");
-									status = (int)RequestDisposition.UNKNOWN;
+									status = (int)EndEntityStatus.INPROCESS;
 									statusMessage = $"Post-submission approval of order {order.id} was successful, but pickup failed";
 								}
 							}
@@ -873,8 +874,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 					else
 					{
 						_logger.LogWarning("The request disposition is for this enrollment could not be determined.");
-						status = (int)RequestDisposition.UNKNOWN;
-						statusMessage = "The request disposition could not be determined.";
+						throw new Exception($"The request disposition is for this enrollment could not be determined.");
 					}
 				}
 			}
@@ -888,7 +888,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		}
 
 		/// <summary>
-		/// Convert DigiCert status string into a RequestDisposition code
+		/// Convert DigiCert status string into a EndEntityStatus code
 		/// </summary>
 		/// <param name="status"></param>
 		/// <param name="orderId"></param>
@@ -900,26 +900,29 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				case "issued":
 				case "approved":
 				case "expired":
-					return (int)RequestDisposition.ISSUED;
+					return (int)EndEntityStatus.GENERATED;
 
 				case "processing":
 				case "reissue_pending":
 				case "pending": // Pending from DigiCert means it will be issued after validation
-					return (int)RequestDisposition.EXTERNAL_VALIDATION;
+				case "waiting_pickup":
+					return (int)EndEntityStatus.EXTERNALVALIDATION;
 
 				case "denied":
-					return (int)RequestDisposition.DENIED;
+				case "rejected":
+				case "canceled":
+					return (int)EndEntityStatus.FAILED;
 
 				case "revoked":
-					return (int)RequestDisposition.REVOKED;
+					return (int)EndEntityStatus.REVOKED;
 
 				case "needs_approval": // This indicates that the request has to be approved through DigiCert, which is a misconfiguration
 					_logger.LogWarning($"Order {orderId} needs to be approved in the DigiCert portal prior to issuance");
-					return (int)RequestDisposition.EXTERNAL_VALIDATION;
+					return (int)EndEntityStatus.EXTERNALVALIDATION;
 
 				default:
-					_logger.LogWarning($"Order {orderId} has unexpected status {status}");
-					return (int)RequestDisposition.UNKNOWN;
+					_logger.LogError($"Order {orderId} has unexpected status {status}");
+					throw new Exception($"Order {orderId} has unknown status {status}");
 			}
 		}
 
@@ -1138,31 +1141,38 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 			foreach (var cert in orderCerts)
 			{
-				string certificate = null;
-				string caReqId = cert.order_id + "-" + cert.certificate_id;
-				int status = GetCertificateStatusFromCA(cert.status, orderId);
-				if (status == (int)RequestDisposition.ISSUED || status == (int)RequestDisposition.REVOKED || status == (int)RequestDisposition.UNKNOWN)
+				try
 				{
-					// We have a status where there may be a cert to download, try to download it
-					CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest(certId));
-					if (certificateChainResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
+					string certificate = null;
+					string caReqId = cert.order_id + "-" + cert.certificate_id;
+					int status = GetCertificateStatusFromCA(cert.status, orderId);
+					if (status == (int)EndEntityStatus.GENERATED || status == (int)EndEntityStatus.REVOKED)
 					{
-						certificate = certificateChainResponse.Intermediates[0].PEM;
+						// We have a status where there may be a cert to download, try to download it
+						CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest(certId));
+						if (certificateChainResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
+						{
+							certificate = certificateChainResponse.Intermediates[0].PEM;
+						}
+						else
+						{
+							throw new Exception($"Unexpected error downloading certificate {certId} for order {orderId}: {certificateChainResponse.Errors.FirstOrDefault()?.message}");
+						}
 					}
-					else
+					var connCert = new CAConnectorCertificate
 					{
-						_logger.LogWarning($"Unexpected error downloading certificate {certId} for order {orderId}: {certificateChainResponse.Errors.FirstOrDefault()?.message}");
-					}
+						CARequestID = caReqId,
+						Certificate = certificate,
+						Status = status,
+						ProductID = orderResponse.product.name_id,
+						RevocationDate = GetRevocationDate(orderResponse)
+					};
+					certList.Add(connCert);
 				}
-				var connCert = new CAConnectorCertificate
+				catch (Exception ex)
 				{
-					CARequestID = caReqId,
-					Certificate = certificate,
-					Status = status,
-					ProductID = orderResponse.product.name_id,
-					RevocationDate = GetRevocationDate(orderResponse)
-				};
-				certList.Add(connCert);
+					_logger.LogWarning($"Error processing cert {cert.order_id}-{cert.certificate_id}: {ex.Message}. Skipping record.");
+				}
 			}
 			return certList;
 		}
