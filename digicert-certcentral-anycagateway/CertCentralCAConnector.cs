@@ -936,6 +936,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		private List<StatusOrder> GetReissues(CertCentralClient digiClient, int orderId)
 		{
 			_logger.LogTrace($"Getting Reissues for order {orderId}");
+			List<string> reqIds = new List<string>();
 			List<StatusOrder> reissueCerts = new List<StatusOrder>();
 			ListReissueResponse reissueResponse = digiClient.ListReissues(new ListReissueRequest(orderId));
 			if (reissueResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
@@ -1222,7 +1223,18 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			{
 				orderCerts.AddRange(dupeCerts);
 			}
-			return orderCerts;
+			List<StatusOrder> retCerts = new List<StatusOrder>();
+			List<string> reqIds = new List<string>();
+			foreach (var cert in orderCerts)
+			{
+				string req = $"{cert.order_id}-{cert.certificate_id}";
+				if (!reqIds.Contains(req))
+				{
+					reqIds.Add(req);
+					retCerts.Add(cert);
+				}
+			}
+			return retCerts;
 		}
 	}
 }
