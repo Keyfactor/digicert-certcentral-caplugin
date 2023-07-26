@@ -60,7 +60,12 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			CertCentralCertType certType = CertCentralCertType.GetAllTypes(_config).FirstOrDefault(x => x.ProductCode.Equals(productInfo.ProductID));
 			OrderRequest orderRequest = new OrderRequest(certType);
 
-			var days = (productInfo.ProductParameters.ContainsKey("LifetimeDays")) ? int.Parse(productInfo.ProductParameters["LifetimeDays"]) : 365;
+			//var days = (productInfo.ProductParameters.ContainsKey("LifetimeDays") && !st) ? int.Parse(productInfo.ProductParameters["LifetimeDays"]) : 365;
+			var days = 365;
+			if (productInfo.ProductParameters.ContainsKey("LifetimeDays") && !string.IsNullOrEmpty(productInfo.ProductParameters["LifetimeDays"]))
+			{
+				days = int.Parse(productInfo.ProductParameters["LifetimeDays"]);
+			}
 			int validityYears = 0;
 			DateTime? customExpirationDate = null;
 			switch (days)
@@ -107,7 +112,10 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			if (productInfo.ProductParameters.TryGetValue(CertCentralConstants.RequestAttributes.ORGANIZATION_NAME, out string orgName))
 			{
 				// If org name is provided as a parameter, it overrides whatever is in the CSR
-				organization = orgName;
+				if (!string.IsNullOrEmpty(orgName))
+				{
+					organization = orgName;
+				}
 			}
 
 			string signatureHash = certType.signatureAlgorithm;
@@ -158,8 +166,11 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			}
 
 			// Get CA Cert ID (if present)
-			string caCertId = (productInfo.ProductParameters.ContainsKey("CACertId")) ? (string)productInfo.ProductParameters["CACertId"] : null;
-
+			string caCertId = null;
+			if (productInfo.ProductParameters.ContainsKey("CACertId") && !string.IsNullOrEmpty(productInfo.ProductParameters["CACertId"]))
+			{
+				caCertId = (string)productInfo.ProductParameters["CACertId"];
+			}
 			// Set up request
 			orderRequest.Certificate.CommonName = commonName;
 			orderRequest.Certificate.CSR = csr;
@@ -215,7 +226,11 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				orderRequest.ValidityYears = validityYears;
 			}
 
-			var renewWindow = (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.RENEWAL_WINDOW)) ? int.Parse(productInfo.ProductParameters[CertCentralConstants.Config.RENEWAL_WINDOW]) : 90;
+			var renewWindow = 90;
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.RENEWAL_WINDOW) && !string.IsNullOrEmpty(productInfo.ProductParameters[CertCentralConstants.Config.RENEWAL_WINDOW]))
+			{
+				renewWindow = int.Parse(productInfo.ProductParameters[CertCentralConstants.Config.RENEWAL_WINDOW]);
+			}
 			string priorCertSnString = null;
 			string priorCertReqID = null;
 
@@ -223,24 +238,34 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			if (enrollmentType == EnrollmentType.RenewOrReissue)
 			{
 				//// Determine if we're going to do a renew or a reissue.
-				//string priorCertSnString = productInfo.ProductParameters["PriorCertSN"];
-				//_logger.LogTrace($"Attempting to retrieve the certificate with serial number {priorCertSnString}.");
-				//byte[] priorCertSn = DataConversion.HexToBytes(priorCertSnString);
-				//CAConnectorCertificate anyGatewayCertificate = _certificateDataReader.(priorCertSn);
-				//if (anyGatewayCertificate == null)
-				//{
-				//	throw new Exception($"No certificate with serial number '{priorCertSnString}' could be found.");
-				//}
-				enrollmentType = EnrollmentType.Renew;
+				priorCertSnString = productInfo.ProductParameters["PriorCertSN"];
+				_logger.LogTrace($"Attempting to retrieve the certificate with serial number {priorCertSnString}.");
+				var reqId = _certificateDataReader.GetRequestIDBySerialNumber(priorCertSnString).Result;
+				if (string.IsNullOrEmpty(reqId))
+				{
+					throw new Exception($"No certificate with serial number '{priorCertSnString}' could be found.");
+				}
+				var expDate = _certificateDataReader.GetExpirationDateByRequestId(reqId);
 
+				var renewCutoff = DateTime.Now.AddDays(renewWindow * -1);
+
+				if (expDate > renewCutoff)
+				{
+					_logger.LogTrace($"Certificate with serial number {priorCertSnString} is within renewal window");
+					enrollmentType = EnrollmentType.Renew;
+				}
+				else
+				{
+					_logger.LogTrace($"Certificate with serial number {priorCertSnString} is not within renewal window. Reissuing...");
+					enrollmentType = EnrollmentType.Reissue;
+				}
 			}
 
 			// Check if the order has more validity in it (multi-year cert). If so, do a reissue instead of a renew
 			if (enrollmentType == EnrollmentType.Renew)
 			{
 				// Get the old cert so we can properly construct the request.
-				priorCertSnString = productInfo.ProductParameters["PriorCertSN"];
-				_logger.LogTrace($"Attempting to retrieve the certificate with serial number {priorCertSnString}.");
+				_logger.LogTrace($"Checking for additional order validity.");
 				priorCertReqID = await _certificateDataReader.GetRequestIDBySerialNumber(priorCertSnString);
 				if (string.IsNullOrEmpty(priorCertReqID))
 				{
@@ -263,7 +288,12 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 				if (certOrder.order_valid_till.HasValue && certOrder.order_valid_till.Value.AddDays(renewWindow * -1) > DateTime.UtcNow)
 				{
+					_logger.LogTrace($"Additional order validity found. Reissuing cert with new expiration.");
 					enrollmentType = EnrollmentType.Reissue;
+				}
+				else
+				{
+					_logger.LogTrace($"No additional order validity found. Renewing certificate.");
 				}
 			}
 
@@ -298,25 +328,29 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				{
 					Comments = "API Key for connecting to DigiCert",
 					Hidden = true,
-					DefaultValue = ""
+					DefaultValue = "",
+					Type = "String"
 				},
 				[CertCentralConstants.Config.DIVISION_ID] = new PropertyConfigInfo()
 				{
 					Comments = "Division ID to use for retrieving product details (only if account is configured with per-divison product settings)",
 					Hidden = false,
-					DefaultValue = ""
+					DefaultValue = "",
+					Type = "Number"
 				},
 				[CertCentralConstants.Config.REGION] = new PropertyConfigInfo()
 				{
 					Comments = "The geographic region that your DigiCert CertCentral account is in. Valid options are US and EU.",
 					Hidden = false,
-					DefaultValue = "US"
+					DefaultValue = "US",
+					Type = "String"
 				},
 				[CertCentralConstants.Config.REVOKE_CERT] = new PropertyConfigInfo()
 				{
 					Comments = "Default DigiCert behavior on revocation requests is to revoke the entire order. If this value is changed to 'true', revocation requests will instead just revoke the individual certificate.",
 					Hidden = false,
-					DefaultValue = "false"
+					DefaultValue = false,
+					Type = "Boolean"
 				}
 			};
 		}
@@ -342,7 +376,8 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 					throw new Exception("Unable to retrieve product list");
 				}
 
-				return productTypesResponse.Products.Select(x => x.NameId).ToList();			}
+				return productTypesResponse.Products.Select(x => x.NameId).ToList();
+			}
 			catch (Exception ex)
 			{
 				// Swallow exceptions and return an empty string.
@@ -412,25 +447,29 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				{
 					Comments = "OPTIONAL: The number of days of validity to use when requesting certs. If not provided, default is 365.",
 					Hidden = false,
-					DefaultValue = "365"
+					DefaultValue = 365,
+					Type = "Number"
 				},
 				[CertCentralConstants.Config.CA_CERT_ID] = new PropertyConfigInfo()
 				{
 					Comments = "OPTIONAL: ID of issuing CA to use by DigiCert. If not provided, the default for your account will be used.",
 					Hidden = false,
-					DefaultValue = ""
+					DefaultValue = "",
+					Type = "String"
 				},
 				[CertCentralConstants.RequestAttributes.ORGANIZATION_NAME] = new PropertyConfigInfo()
 				{
 					Comments = "OPTIONAL: For requests that will not have a subject (such as ACME) you can use this field to provide the organization name. Value supplied here will override any CSR values, so do not include this field if you want the organization from the CSR to be used.",
 					Hidden = false,
-					DefaultValue = ""
+					DefaultValue = "",
+					Type = "String"
 				},
 				[CertCentralConstants.Config.RENEWAL_WINDOW] = new PropertyConfigInfo()
 				{
 					Comments = "OPTIONAL: The number of days from certificate expiration that the gateway should do a renewal rather than a reissue. If not provided, default is 90.",
 					Hidden = false,
-					DefaultValue = "90"
+					DefaultValue = 90,
+					Type = "Number"
 				}
 			};
 		}
