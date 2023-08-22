@@ -373,7 +373,8 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				// If we couldn't get the types, return an empty comment.
 				if (productTypesResponse.Status != CertCentralBaseResponse.StatusType.SUCCESS)
 				{
-					throw new Exception("Unable to retrieve product list");
+					_logger.LogError($"Unable to retrieve product list: {productTypesResponse.Errors[0]}");
+					return new List<string>();
 				}
 
 				return productTypesResponse.Products.Select(x => x.NameId).ToList();
@@ -382,7 +383,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			{
 				// Swallow exceptions and return an empty string.
 				_logger.LogError($"Unable to retrieve product list: {ex.Message}");
-				throw;
+				return new List<string>();
 			}
 		}
 
@@ -591,6 +592,9 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 			if (fullSync)
 			{
+				long time = DateTime.Now.Ticks;
+				long starttime = time;
+				_logger.LogDebug($"SYNC: Starting sync at time {time}");
 				ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders();
 				if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 				{
@@ -600,6 +604,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				}
 				else
 				{
+					_logger.LogDebug($"SYNC: Found {ordersResponse.orders.Count} records");
 					foreach (var orderDetails in ordersResponse.orders)
 					{
 						List<CAConnectorCertificate> orderCerts = new List<CAConnectorCertificate>();
@@ -607,7 +612,9 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 						{
 							cancelToken.ThrowIfCancellationRequested();
 							string caReqId = orderDetails.id + "-" + orderDetails.certificate.id;
+							_logger.LogDebug($"SYNC: Retrieving certs for order id {orderDetails.id}");
 							orderCerts = GetAllConnectorCertsForOrder(caReqId);
+							_logger.LogDebug($"SYNC: Retrieved {orderCerts.Count} certs at time {DateTime.Now.Ticks}");
 						}
 						catch
 						{
@@ -623,6 +630,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 						}
 
 					}
+					_logger.LogDebug($"SYNC: Complete after {DateTime.Now.Ticks - starttime} ticks");
 				}
 			}
 			else
