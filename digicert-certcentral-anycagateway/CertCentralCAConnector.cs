@@ -1000,7 +1000,8 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 					{
 						order_id = orderId,
 						certificate_id = reissueCert.id,
-						status = reissueCert.status
+						status = reissueCert.status,
+						serialNum = reissueCert.serial_number
 					};
 					reissueCerts.Add(reissueStatusOrder);
 				}
@@ -1035,7 +1036,8 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 					{
 						order_id = orderId,
 						certificate_id = dupeCert.id,
-						status = dupeCert.status
+						status = dupeCert.status,
+						serialNum = dupeCert.serial_number
 					};
 					dupeCerts.Add(dupeStatusOrder);
 				}
@@ -1258,10 +1260,13 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			{
 				order_id = orderId,
 				certificate_id = orderResponse.certificate.id,
-				status = orderStatusString
+				status = orderStatusString,
+				serialNum = orderResponse.certificate.serial_number
 			};
-			List<StatusOrder> orderCerts = new List<StatusOrder>();
-			orderCerts.Add(primary);
+			List<StatusOrder> orderCerts = new List<StatusOrder>
+			{
+				primary
+			};
 			if (reissueCerts?.Count > 0)
 			{
 				orderCerts.AddRange(reissueCerts);
@@ -1272,13 +1277,28 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			}
 			List<StatusOrder> retCerts = new List<StatusOrder>();
 			List<string> reqIds = new List<string>();
+			List<string> serNums = new List<string>();
 			foreach (var cert in orderCerts)
 			{
 				string req = $"{cert.order_id}-{cert.certificate_id}";
+
+				// Listing reissues/duplicates can also return the primary certificate. This check insures that only one copy of the primary certificate gets added to the sync list.
 				if (!reqIds.Contains(req))
 				{
-					reqIds.Add(req);
-					retCerts.Add(cert);
+					// This is actually caused by an issue in the DigiCert API. For some orders (but not all), retrieving the reissued/duplicate certificates on an order
+					// instead just retrieves multiple copies of the primary certificate on that order. Since the gateway database must have unique certificates
+					// (serial number column is unique), we work around this by only syncing the primary cert in these cases. Other orders that correctly retrieve the
+					// reissued/duplicate certificates will pass this check.
+					if (!serNums.Contains(req))
+					{
+						reqIds.Add(req);
+						retCerts.Add(cert);
+						serNums.Add(cert.serialNum);
+					}
+					else
+					{
+						_logger.LogWarning($"Duplicate certificate serial numbers found. Only one will be synced. Order ID: {cert.order_id}");
+					}
 				}
 			}
 			return retCerts;
