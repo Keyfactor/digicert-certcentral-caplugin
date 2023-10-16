@@ -1,5 +1,6 @@
 ﻿using Keyfactor.AnyGateway.Extensions;
 using Keyfactor.Common;
+using Keyfactor.Common.Exceptions;
 using Keyfactor.Extensions.CAGateway.DigiCert.API;
 using Keyfactor.Extensions.CAGateway.DigiCert.Client;
 using Keyfactor.Extensions.CAGateway.DigiCert.Models;
@@ -723,7 +724,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			if (domains.Status == CertCentralBaseResponse.StatusType.ERROR)
 			{
 				_logger.LogError($"Error from CertCentral client: {domains.Errors[0].message}");
-				errors.Add("Error grabbing DigiCert domains");
+				errors.Add("Error grabbing DigiCert domains. See log file for details.");
 			}
 			_logger.MethodExit(LogLevel.Trace);
 			// We cannot proceed if there are any errors.
@@ -735,7 +736,8 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 		private void ThrowValidationException(List<string> errors)
 		{
-			throw new ArgumentException(string.Join("\n", errors));
+			string validationMsg = $"Validation errors:\n{string.Join("\n", errors)}";
+			throw new KeyfactorException(validationMsg, unchecked((uint)HRESULTs.INVALID_DATA));
 		}
 
 		/// <summary>
