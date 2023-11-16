@@ -24,7 +24,7 @@ using CertCentralConstants = Keyfactor.Extensions.CAGateway.DigiCert.Constants;
 
 namespace Keyfactor.Extensions.CAGateway.DigiCert
 {
-	public class CertCentralCAConnector : ICAConnector
+	public class CertCentralCAConnector : IAnyCAPlugin
 	{
 		private CertCentralConfig _config;
 		private readonly ILogger _logger;
@@ -36,7 +36,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		{
 			_logger = LogHandler.GetClassLogger<CertCentralCAConnector>();
 		}
-		public void Initialize(ICAConnectorConfigProvider configProvider, ICertificateDataReader certificateDataReader)
+		public void Initialize(IAnyCAPluginConfigProvider configProvider, ICertificateDataReader certificateDataReader)
 		{
 			_certificateDataReader = certificateDataReader;
 			string rawConfig = JsonConvert.SerializeObject(configProvider.CAConnectionData);
@@ -394,7 +394,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		/// </summary>
 		/// <param name="caRequestID">The gateway request ID of the record to retrieve, in the format 'orderID-certID'</param>
 		/// <returns></returns>
-		public async Task<CAConnectorCertificate> GetSingleRecord(string caRequestID)
+		public async Task<AnyCAPluginCertificate> GetSingleRecord(string caRequestID)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 			// Split ca request id into order and cert id
@@ -427,7 +427,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				}
 			}
 			_logger.MethodExit(LogLevel.Trace);
-			return new CAConnectorCertificate
+			return new AnyCAPluginCertificate
 			{
 				CARequestID = caRequestID,
 				Certificate = certificate,
@@ -573,7 +573,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		/// <param name="cancelToken"></param>
 		/// <returns></returns>
 		/// <exception cref="Exception"></exception>
-		public async Task Synchronize(BlockingCollection<CAConnectorCertificate> blockingBuffer, DateTime? lastSync, bool fullSync, CancellationToken cancelToken)
+		public async Task Synchronize(BlockingCollection<AnyCAPluginCertificate> blockingBuffer, DateTime? lastSync, bool fullSync, CancellationToken cancelToken)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 
@@ -582,7 +582,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			string lastSyncFormat = FormatSyncDate(lastSync);
 			string todaySyncFormat = FormatSyncDate(utcDate);
 
-			List<CAConnectorCertificate> certs = new List<CAConnectorCertificate>();
+			List<AnyCAPluginCertificate> certs = new List<AnyCAPluginCertificate>();
 			List<StatusOrder> certsToSync = new List<StatusOrder>();
 
 			_logger.LogDebug("Attempting to create a CertCentral client");
@@ -608,7 +608,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 					_logger.LogDebug($"SYNC: Found {ordersResponse.orders.Count} records");
 					foreach (var orderDetails in ordersResponse.orders)
 					{
-						List<CAConnectorCertificate> orderCerts = new List<CAConnectorCertificate>();
+						List<AnyCAPluginCertificate> orderCerts = new List<AnyCAPluginCertificate>();
 						try
 						{
 							cancelToken.ThrowIfCancellationRequested();
@@ -648,7 +648,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 					int orderCount = statusChangesResponse.orders.Count;
 					foreach (var order in statusChangesResponse.orders)
 					{
-						List<CAConnectorCertificate> orderCerts = new List<CAConnectorCertificate>();
+						List<AnyCAPluginCertificate> orderCerts = new List<AnyCAPluginCertificate>();
 						try
 						{
 							cancelToken.ThrowIfCancellationRequested();
@@ -737,7 +737,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		private void ThrowValidationException(List<string> errors)
 		{
 			string validationMsg = $"Validation errors:\n{string.Join("\n", errors)}";
-			throw new KeyfactorException(validationMsg, unchecked((uint)HRESULTs.INVALID_DATA));
+			throw new AnyCAValidationException(validationMsg);
 		}
 
 		/// <summary>
@@ -770,14 +770,14 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			CertificateTypesResponse productIdResponse = client.GetAllCertificateTypes();
 			if (productIdResponse.Status != CertCentralBaseResponse.StatusType.SUCCESS)
 			{
-				throw new Exception($"The product types could not be retrieved from the server. The following errors occurred: {string.Join(" ", productIdResponse.Errors.Select(x => x.message))}");
+				throw new AnyCAValidationException($"The product types could not be retrieved from the server. The following errors occurred: {string.Join(" ", productIdResponse.Errors.Select(x => x.message))}");
 			}
 
 			// Get product and check if it exists.
 			var product = productIdResponse.Products.FirstOrDefault(x => x.NameId.Equals(productId, StringComparison.InvariantCultureIgnoreCase));
 			if (product == null)
 			{
-				throw new Exception($"The product ID '{productId}' does not exist. The following product IDs are valid: {string.Join(", ", productIdResponse.Products.Select(x => x.NameId))}");
+				throw new AnyCAValidationException($"The product ID '{productId}' does not exist. The following product IDs are valid: {string.Join(", ", productIdResponse.Products.Select(x => x.NameId))}");
 			}
 
 			// Get product ID details.
@@ -793,7 +793,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			CertificateTypeDetailsResponse details = client.GetCertificateTypeDetails(detailsRequest);
 			if (details.Errors.Any())
 			{
-				throw new Exception($"Validation of '{productId}' failed for the following reasons: {string.Join(" ", details.Errors.Select(x => x.message))}.");
+				throw new AnyCAValidationException($"Validation of '{productId}' failed for the following reasons: {string.Join(" ", details.Errors.Select(x => x.message))}.");
 			}
 			_logger.MethodExit(LogLevel.Trace);
 		}
@@ -906,7 +906,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 								caRequestID = $"{order.id}-{order.certificate.id}";
 								try
 								{
-									CAConnectorCertificate connCert = await GetSingleRecord($"{order.id}-{order.certificate.id}");
+									AnyCAPluginCertificate connCert = await GetSingleRecord($"{order.id}-{order.certificate.id}");
 									certificate = connCert.Certificate;
 									status = connCert.Status;
 									statusMessage = $"Post-submission approval of order {order.id} returned success";
@@ -1174,7 +1174,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		/// </summary>
 		/// <param name="caRequestID"></param>
 		/// <returns></returns>
-		private List<CAConnectorCertificate> GetAllConnectorCertsForOrder(string caRequestID)
+		private List<AnyCAPluginCertificate> GetAllConnectorCertsForOrder(string caRequestID)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 			// Split ca request id into order and cert id
@@ -1189,7 +1189,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 			var orderCerts = GetAllCertsForOrder(orderId);
 
-			List<CAConnectorCertificate> certList = new List<CAConnectorCertificate>();
+			List<AnyCAPluginCertificate> certList = new List<AnyCAPluginCertificate>();
 
 			foreach (var cert in orderCerts)
 			{
@@ -1211,7 +1211,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 							throw new Exception($"Unexpected error downloading certificate {certId} for order {orderId}: {certificateChainResponse.Errors.FirstOrDefault()?.message}");
 						}
 					}
-					var connCert = new CAConnectorCertificate
+					var connCert = new AnyCAPluginCertificate
 					{
 						CARequestID = caReqId,
 						Certificate = certificate,
