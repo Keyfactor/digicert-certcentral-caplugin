@@ -786,8 +786,14 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			detailsRequest.ContainerId = null;
 			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID))
 			{
-				int.TryParse((string)connectionInfo[CertCentralConstants.Config.DIVISION_ID], out int divId);
-				detailsRequest.ContainerId = divId;
+				if (int.TryParse($"{connectionInfo[CertCentralConstants.Config.DIVISION_ID]}", out int divId))
+				{
+					detailsRequest.ContainerId = divId;
+				}
+				else
+				{
+					throw new AnyCAValidationException($"Unable to parse division ID '{connectionInfo[CertCentralConstants.Config.DIVISION_ID]}'. Check that this is a valid division ID.");
+				}
 			}
 
 			CertificateTypeDetailsResponse details = client.GetCertificateTypeDetails(detailsRequest);
