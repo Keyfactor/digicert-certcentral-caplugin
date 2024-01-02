@@ -12,7 +12,7 @@ This repository contains an AnyGateway CA Connector, which is a plugin to the Ke
 
 ## Support for digicert-certcentral-anycagateway
 
-digicert-certcentral-anycagateway is open source and community supported, meaning that there is **no SLA** applicable for these tools.
+digicert-certcentral-anycagateway is open source and community supported, meaning that there is no support guaranteed from Keyfactor Support for these tools.
 
 ###### To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
 
@@ -52,7 +52,7 @@ In order to enroll for certificates the Keyfactor Command server must trust the 
   ```json
 {  
 	"extensions": {  
-		"Keyfactor.AnyGateway.Extensions.ICAConnector": {  
+		"Keyfactor.AnyGateway.Extensions.IAnyCAPlugin": {  
 			"DigiCertCAConnector": {  
 				"assemblypath": "../DigiCertCAGateway.dll",  
 				"TypeFullName": "Keyfactor.Extensions.CAGateway.DigiCert.CertCentralCAConnector"  
