@@ -1,9 +1,11 @@
 ﻿using Keyfactor.AnyGateway.Extensions;
 using Keyfactor.Common;
+using Keyfactor.Common.Exceptions;
 using Keyfactor.Extensions.CAGateway.DigiCert.API;
 using Keyfactor.Extensions.CAGateway.DigiCert.Client;
 using Keyfactor.Extensions.CAGateway.DigiCert.Models;
 using Keyfactor.Logging;
+using Keyfactor.PKI.Enums;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,7 +24,7 @@ using CertCentralConstants = Keyfactor.Extensions.CAGateway.DigiCert.Constants;
 
 namespace Keyfactor.Extensions.CAGateway.DigiCert
 {
-	public class CertCentralCAConnector : ICAConnector
+	public class CertCentralCAConnector : IAnyCAPlugin
 	{
 		private CertCentralConfig _config;
 		private readonly ILogger _logger;
@@ -34,13 +36,24 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		{
 			_logger = LogHandler.GetClassLogger<CertCentralCAConnector>();
 		}
-		public void Initialize(ICAConnectorConfigProvider configProvider, ICertificateDataReader certificateDataReader)
+		public void Initialize(IAnyCAPluginConfigProvider configProvider, ICertificateDataReader certificateDataReader)
 		{
 			_certificateDataReader = certificateDataReader;
 			string rawConfig = JsonConvert.SerializeObject(configProvider.CAConnectionData);
 			_config = JsonConvert.DeserializeObject<CertCentralConfig>(rawConfig);
 		}
 
+		/// <summary>
+		/// Enroll for a certificate
+		/// </summary>
+		/// <param name="csr">The CSR for the certificate request</param>
+		/// <param name="subject">The subject string</param>
+		/// <param name="san">The list of SANs</param>
+		/// <param name="productInfo">Collection of product information and options. Includes both product-level config options as well as custom enrollment fields.</param>
+		/// <param name="requestFormat">The format of the request</param>
+		/// <param name="enrollmentType">The type of enrollment (new, renew, reissue)</param>
+		/// <returns>The result of the enrollment</returns>
+		/// <exception cref="Exception"></exception>
 		public async Task<EnrollmentResult> Enroll(string csr, string subject, Dictionary<string, string[]> san, EnrollmentProductInfo productInfo, RequestFormat requestFormat, EnrollmentType enrollmentType)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
@@ -48,7 +61,12 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			CertCentralCertType certType = CertCentralCertType.GetAllTypes(_config).FirstOrDefault(x => x.ProductCode.Equals(productInfo.ProductID));
 			OrderRequest orderRequest = new OrderRequest(certType);
 
-			var days = (productInfo.ProductParameters.ContainsKey("LifetimeDays")) ? int.Parse(productInfo.ProductParameters["LifetimeDays"]) : 365;
+			//var days = (productInfo.ProductParameters.ContainsKey("LifetimeDays") && !st) ? int.Parse(productInfo.ProductParameters["LifetimeDays"]) : 365;
+			var days = 365;
+			if (productInfo.ProductParameters.ContainsKey("LifetimeDays") && !string.IsNullOrEmpty(productInfo.ProductParameters["LifetimeDays"]))
+			{
+				days = int.Parse(productInfo.ProductParameters["LifetimeDays"]);
+			}
 			int validityYears = 0;
 			DateTime? customExpirationDate = null;
 			switch (days)
@@ -95,7 +113,10 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			if (productInfo.ProductParameters.TryGetValue(CertCentralConstants.RequestAttributes.ORGANIZATION_NAME, out string orgName))
 			{
 				// If org name is provided as a parameter, it overrides whatever is in the CSR
-				organization = orgName;
+				if (!string.IsNullOrEmpty(orgName))
+				{
+					organization = orgName;
+				}
 			}
 
 			string signatureHash = certType.signatureAlgorithm;
@@ -146,8 +167,11 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			}
 
 			// Get CA Cert ID (if present)
-			string caCertId = (productInfo.ProductParameters.ContainsKey("CACertId")) ? (string)productInfo.ProductParameters["CACertId"] : null;
-
+			string caCertId = null;
+			if (productInfo.ProductParameters.ContainsKey("CACertId") && !string.IsNullOrEmpty(productInfo.ProductParameters["CACertId"]))
+			{
+				caCertId = (string)productInfo.ProductParameters["CACertId"];
+			}
 			// Set up request
 			orderRequest.Certificate.CommonName = commonName;
 			orderRequest.Certificate.CSR = csr;
@@ -203,30 +227,46 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				orderRequest.ValidityYears = validityYears;
 			}
 
-			var renewWindow = (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.RENEWAL_WINDOW)) ? int.Parse(productInfo.ProductParameters[CertCentralConstants.Config.RENEWAL_WINDOW]) : 90;
+			var renewWindow = 90;
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.RENEWAL_WINDOW) && !string.IsNullOrEmpty(productInfo.ProductParameters[CertCentralConstants.Config.RENEWAL_WINDOW]))
+			{
+				renewWindow = int.Parse(productInfo.ProductParameters[CertCentralConstants.Config.RENEWAL_WINDOW]);
+			}
 			string priorCertSnString = null;
 			string priorCertReqID = null;
+
+			// Current gateway core leaves it up to the integration to determine if it is a renewal or a reissue
 			if (enrollmentType == EnrollmentType.RenewOrReissue)
 			{
 				//// Determine if we're going to do a renew or a reissue.
-				//string priorCertSnString = productInfo.ProductParameters["PriorCertSN"];
-				//_logger.LogTrace($"Attempting to retrieve the certificate with serial number {priorCertSnString}.");
-				//byte[] priorCertSn = DataConversion.HexToBytes(priorCertSnString);
-				//CAConnectorCertificate anyGatewayCertificate = _certificateDataReader.(priorCertSn);
-				//if (anyGatewayCertificate == null)
-				//{
-				//	throw new Exception($"No certificate with serial number '{priorCertSnString}' could be found.");
-				//}
-				enrollmentType = EnrollmentType.Renew;
+				priorCertSnString = productInfo.ProductParameters["PriorCertSN"];
+				_logger.LogTrace($"Attempting to retrieve the certificate with serial number {priorCertSnString}.");
+				var reqId = _certificateDataReader.GetRequestIDBySerialNumber(priorCertSnString).Result;
+				if (string.IsNullOrEmpty(reqId))
+				{
+					throw new Exception($"No certificate with serial number '{priorCertSnString}' could be found.");
+				}
+				var expDate = _certificateDataReader.GetExpirationDateByRequestId(reqId);
 
+				var renewCutoff = DateTime.Now.AddDays(renewWindow * -1);
+
+				if (expDate > renewCutoff)
+				{
+					_logger.LogTrace($"Certificate with serial number {priorCertSnString} is within renewal window");
+					enrollmentType = EnrollmentType.Renew;
+				}
+				else
+				{
+					_logger.LogTrace($"Certificate with serial number {priorCertSnString} is not within renewal window. Reissuing...");
+					enrollmentType = EnrollmentType.Reissue;
+				}
 			}
 
 			// Check if the order has more validity in it (multi-year cert). If so, do a reissue instead of a renew
 			if (enrollmentType == EnrollmentType.Renew)
 			{
 				// Get the old cert so we can properly construct the request.
-				priorCertSnString = productInfo.ProductParameters["PriorCertSN"];
-				_logger.LogTrace($"Attempting to retrieve the certificate with serial number {priorCertSnString}.");
+				_logger.LogTrace($"Checking for additional order validity.");
 				priorCertReqID = await _certificateDataReader.GetRequestIDBySerialNumber(priorCertSnString);
 				if (string.IsNullOrEmpty(priorCertReqID))
 				{
@@ -249,7 +289,12 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 				if (certOrder.order_valid_till.HasValue && certOrder.order_valid_till.Value.AddDays(renewWindow * -1) > DateTime.UtcNow)
 				{
+					_logger.LogTrace($"Additional order validity found. Reissuing cert with new expiration.");
 					enrollmentType = EnrollmentType.Reissue;
+				}
+				else
+				{
+					_logger.LogTrace($"No additional order validity found. Renewing certificate.");
 				}
 			}
 
@@ -272,6 +317,10 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			}
 		}
 
+		/// <summary>
+		/// Get the annotations for the CA Connector-level configuration fields
+		/// </summary>
+		/// <returns></returns>
 		public Dictionary<string, PropertyConfigInfo> GetCAConnectorAnnotations()
 		{
 			return new Dictionary<string, PropertyConfigInfo>()
@@ -280,29 +329,37 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				{
 					Comments = "API Key for connecting to DigiCert",
 					Hidden = true,
-					DefaultValue = ""
+					DefaultValue = "",
+					Type = "String"
 				},
 				[CertCentralConstants.Config.DIVISION_ID] = new PropertyConfigInfo()
 				{
 					Comments = "Division ID to use for retrieving product details (only if account is configured with per-divison product settings)",
 					Hidden = false,
-					DefaultValue = ""
+					DefaultValue = "",
+					Type = "Number"
 				},
 				[CertCentralConstants.Config.REGION] = new PropertyConfigInfo()
 				{
 					Comments = "The geographic region that your DigiCert CertCentral account is in. Valid options are US and EU.",
 					Hidden = false,
-					DefaultValue = "US"
+					DefaultValue = "US",
+					Type = "String"
 				},
 				[CertCentralConstants.Config.REVOKE_CERT] = new PropertyConfigInfo()
 				{
 					Comments = "Default DigiCert behavior on revocation requests is to revoke the entire order. If this value is changed to 'true', revocation requests will instead just revoke the individual certificate.",
 					Hidden = false,
-					DefaultValue = "false"
+					DefaultValue = false,
+					Type = "Boolean"
 				}
 			};
 		}
 
+		/// <summary>
+		/// Get the list of valid product IDs from DigiCert
+		/// </summary>
+		/// <returns></returns>
 		public List<string> GetProductIds()
 		{
 			try
@@ -317,19 +374,27 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				// If we couldn't get the types, return an empty comment.
 				if (productTypesResponse.Status != CertCentralBaseResponse.StatusType.SUCCESS)
 				{
-					throw new Exception("Unable to retrieve product list");
+					_logger.LogError($"Unable to retrieve product list: {productTypesResponse.Errors[0]}");
+					return new List<string>();
 				}
 
-				return productTypesResponse.Products.Select(x => x.NameId).ToList();			}
+				return productTypesResponse.Products.Select(x => x.NameId).ToList();
+			}
 			catch (Exception ex)
 			{
 				// Swallow exceptions and return an empty string.
 				_logger.LogError($"Unable to retrieve product list: {ex.Message}");
-				throw;
+				return new List<string>();
 			}
 		}
 
-		public async Task<CAConnectorCertificate> GetSingleRecord(string caRequestID)
+
+		/// <summary>
+		/// Retrieve a single record from DigiCert
+		/// </summary>
+		/// <param name="caRequestID">The gateway request ID of the record to retrieve, in the format 'orderID-certID'</param>
+		/// <returns></returns>
+		public async Task<AnyCAPluginCertificate> GetSingleRecord(string caRequestID)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 			// Split ca request id into order and cert id
@@ -348,7 +413,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 			string certificate = null;
 			int status = GetCertificateStatusFromCA(certToCheck.status, orderId);
-			if (status == (int)RequestDisposition.ISSUED || status == (int)RequestDisposition.REVOKED || status == (int)RequestDisposition.UNKNOWN)
+			if (status == (int)EndEntityStatus.GENERATED || status == (int)EndEntityStatus.REVOKED)
 			{
 				// We have a status where there may be a cert to download, try to download it
 				CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest(certId));
@@ -362,7 +427,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				}
 			}
 			_logger.MethodExit(LogLevel.Trace);
-			return new CAConnectorCertificate
+			return new AnyCAPluginCertificate
 			{
 				CARequestID = caRequestID,
 				Certificate = certificate,
@@ -372,6 +437,10 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			};
 		}
 
+		/// <summary>
+		/// Get the annotations for the product-level configuration fields
+		/// </summary>
+		/// <returns></returns>
 		public Dictionary<string, PropertyConfigInfo> GetTemplateParameterAnnotations()
 		{
 			return new Dictionary<string, PropertyConfigInfo>()
@@ -380,29 +449,38 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				{
 					Comments = "OPTIONAL: The number of days of validity to use when requesting certs. If not provided, default is 365.",
 					Hidden = false,
-					DefaultValue = "365"
+					DefaultValue = 365,
+					Type = "Number"
 				},
 				[CertCentralConstants.Config.CA_CERT_ID] = new PropertyConfigInfo()
 				{
 					Comments = "OPTIONAL: ID of issuing CA to use by DigiCert. If not provided, the default for your account will be used.",
 					Hidden = false,
-					DefaultValue = ""
+					DefaultValue = "",
+					Type = "String"
 				},
 				[CertCentralConstants.RequestAttributes.ORGANIZATION_NAME] = new PropertyConfigInfo()
 				{
 					Comments = "OPTIONAL: For requests that will not have a subject (such as ACME) you can use this field to provide the organization name. Value supplied here will override any CSR values, so do not include this field if you want the organization from the CSR to be used.",
 					Hidden = false,
-					DefaultValue = ""
+					DefaultValue = "",
+					Type = "String"
 				},
 				[CertCentralConstants.Config.RENEWAL_WINDOW] = new PropertyConfigInfo()
 				{
 					Comments = "OPTIONAL: The number of days from certificate expiration that the gateway should do a renewal rather than a reissue. If not provided, default is 90.",
 					Hidden = false,
-					DefaultValue = "90"
+					DefaultValue = 90,
+					Type = "Number"
 				}
 			};
 		}
 
+		/// <summary>
+		/// Verify connectivity with the DigiCert web service
+		/// </summary>
+		/// <returns></returns>
+		/// <exception cref="Exception"></exception>
 		public async Task Ping()
 		{
 			_logger.MethodEntry(LogLevel.Trace);
@@ -428,6 +506,15 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			_logger.MethodExit(LogLevel.Trace);
 		}
 
+		/// <summary>
+		/// Revoke either a single certificate or an order, depending on your configuration settings
+		/// </summary>
+		/// <param name="caRequestID"></param>
+		/// <param name="hexSerialNumber"></param>
+		/// <param name="revocationReason"></param>
+		/// <returns></returns>
+		/// <exception cref="COMException"></exception>
+		/// <exception cref="Exception"></exception>
 		public async Task<int> Revoke(string caRequestID, string hexSerialNumber, uint revocationReason)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
@@ -474,10 +561,19 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				_logger.LogError(errMsg);
 				throw new Exception(errMsg);
 			}
-			return (int)RequestDisposition.REVOKED;
+			return (int)EndEntityStatus.REVOKED;
 		}
 
-		public async Task Synchronize(BlockingCollection<CAConnectorCertificate> blockingBuffer, DateTime? lastSync, bool fullSync, CancellationToken cancelToken)
+		/// <summary>
+		/// Perform an inventory of DigiCert certs
+		/// </summary>
+		/// <param name="blockingBuffer">Buffer to return retrieved certs in</param>
+		/// <param name="lastSync">DateTime of the last sync performed</param>
+		/// <param name="fullSync">If true, return all certs from DigiCert. If false, only return certs that are new or changed status since the lastSync time.</param>
+		/// <param name="cancelToken"></param>
+		/// <returns></returns>
+		/// <exception cref="Exception"></exception>
+		public async Task Synchronize(BlockingCollection<AnyCAPluginCertificate> blockingBuffer, DateTime? lastSync, bool fullSync, CancellationToken cancelToken)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 
@@ -486,7 +582,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			string lastSyncFormat = FormatSyncDate(lastSync);
 			string todaySyncFormat = FormatSyncDate(utcDate);
 
-			List<CAConnectorCertificate> certs = new List<CAConnectorCertificate>();
+			List<AnyCAPluginCertificate> certs = new List<AnyCAPluginCertificate>();
 			List<StatusOrder> certsToSync = new List<StatusOrder>();
 
 			_logger.LogDebug("Attempting to create a CertCentral client");
@@ -497,6 +593,9 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 			if (fullSync)
 			{
+				long time = DateTime.Now.Ticks;
+				long starttime = time;
+				_logger.LogDebug($"SYNC: Starting sync at time {time}");
 				ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders();
 				if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 				{
@@ -506,14 +605,17 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				}
 				else
 				{
+					_logger.LogDebug($"SYNC: Found {ordersResponse.orders.Count} records");
 					foreach (var orderDetails in ordersResponse.orders)
 					{
-						List<CAConnectorCertificate> orderCerts = new List<CAConnectorCertificate>();
+						List<AnyCAPluginCertificate> orderCerts = new List<AnyCAPluginCertificate>();
 						try
 						{
 							cancelToken.ThrowIfCancellationRequested();
 							string caReqId = orderDetails.id + "-" + orderDetails.certificate.id;
+							_logger.LogDebug($"SYNC: Retrieving certs for order id {orderDetails.id}");
 							orderCerts = GetAllConnectorCertsForOrder(caReqId);
+							_logger.LogDebug($"SYNC: Retrieved {orderCerts.Count} certs at time {DateTime.Now.Ticks}");
 						}
 						catch
 						{
@@ -529,6 +631,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 						}
 
 					}
+					_logger.LogDebug($"SYNC: Complete after {DateTime.Now.Ticks - starttime} ticks");
 				}
 			}
 			else
@@ -545,7 +648,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 					int orderCount = statusChangesResponse.orders.Count;
 					foreach (var order in statusChangesResponse.orders)
 					{
-						List<CAConnectorCertificate> orderCerts = new List<CAConnectorCertificate>();
+						List<AnyCAPluginCertificate> orderCerts = new List<AnyCAPluginCertificate>();
 						try
 						{
 							cancelToken.ThrowIfCancellationRequested();
@@ -582,6 +685,11 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			_logger.MethodExit(LogLevel.Trace);
 		}
 
+		/// <summary>
+		/// Validate CA Connection-level configuration fields
+		/// </summary>
+		/// <param name="connectionInfo"></param>
+		/// <returns></returns>
 		public async Task ValidateCAConnectionInfo(Dictionary<string, object> connectionInfo)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
@@ -616,7 +724,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			if (domains.Status == CertCentralBaseResponse.StatusType.ERROR)
 			{
 				_logger.LogError($"Error from CertCentral client: {domains.Errors[0].message}");
-				errors.Add("Error grabbing DigiCert domains");
+				errors.Add("Error grabbing DigiCert domains. See log file for details.");
 			}
 			_logger.MethodExit(LogLevel.Trace);
 			// We cannot proceed if there are any errors.
@@ -628,9 +736,17 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 		private void ThrowValidationException(List<string> errors)
 		{
-			throw new ArgumentException(string.Join("\n", errors));
+			string validationMsg = $"Validation errors:\n{string.Join("\n", errors)}";
+			throw new AnyCAValidationException(validationMsg);
 		}
 
+		/// <summary>
+		/// Validate product-level configuration fields
+		/// </summary>
+		/// <param name="productInfo"></param>
+		/// <param name="connectionInfo"></param>
+		/// <returns></returns>
+		/// <exception cref="Exception"></exception>
 		public async Task ValidateProductInfo(EnrollmentProductInfo productInfo, Dictionary<string, object> connectionInfo)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
@@ -654,14 +770,14 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			CertificateTypesResponse productIdResponse = client.GetAllCertificateTypes();
 			if (productIdResponse.Status != CertCentralBaseResponse.StatusType.SUCCESS)
 			{
-				throw new Exception($"The product types could not be retrieved from the server. The following errors occurred: {string.Join(" ", productIdResponse.Errors.Select(x => x.message))}");
+				throw new AnyCAValidationException($"The product types could not be retrieved from the server. The following errors occurred: {string.Join(" ", productIdResponse.Errors.Select(x => x.message))}");
 			}
 
 			// Get product and check if it exists.
 			var product = productIdResponse.Products.FirstOrDefault(x => x.NameId.Equals(productId, StringComparison.InvariantCultureIgnoreCase));
 			if (product == null)
 			{
-				throw new Exception($"The product ID '{productId}' does not exist. The following product IDs are valid: {string.Join(", ", productIdResponse.Products.Select(x => x.NameId))}");
+				throw new AnyCAValidationException($"The product ID '{productId}' does not exist. The following product IDs are valid: {string.Join(", ", productIdResponse.Products.Select(x => x.NameId))}");
 			}
 
 			// Get product ID details.
@@ -677,7 +793,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			CertificateTypeDetailsResponse details = client.GetCertificateTypeDetails(detailsRequest);
 			if (details.Errors.Any())
 			{
-				throw new Exception($"Validation of '{productId}' failed for the following reasons: {string.Join(" ", details.Errors.Select(x => x.message))}.");
+				throw new AnyCAValidationException($"Validation of '{productId}' failed for the following reasons: {string.Join(" ", details.Errors.Select(x => x.message))}.");
 			}
 			_logger.MethodExit(LogLevel.Trace);
 		}
@@ -702,7 +818,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		/// </summary>
 		private async Task<EnrollmentResult> ExtractEnrollmentResult(CertCentralClient client, OrderResponse orderResponse, string commonName)
 		{
-			int status = (int)RequestDisposition.UNKNOWN;
+			int status = 0;
 			string statusMessage = null;
 			string certificate = null;
 			string caRequestID = null;
@@ -711,7 +827,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			{
 				_logger.LogError($"Error from CertCentral client: {orderResponse.Errors.First().message}");
 
-				status = (int)RequestDisposition.FAILED;
+				status = (int)EndEntityStatus.FAILED;
 				statusMessage = orderResponse.Errors[0].message;
 			}
 			else if (orderResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
@@ -771,12 +887,12 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 							caRequestID = orderResponse.OrderId.ToString();
 							if (updateStatusResponse.Errors.Any(x => x.code == "access_denied|invalid_approver"))
 							{
-								status = (int)RequestDisposition.EXTERNAL_VALIDATION;
+								status = (int)EndEntityStatus.EXTERNALVALIDATION;
 								statusMessage = errors;
 							}
 							else
 							{
-								status = (int)RequestDisposition.FAILED;
+								status = (int)EndEntityStatus.FAILED;
 								statusMessage = $"Approval of order '{orderResponse.OrderId}' failed. Check the gateway logs for more details.";
 							}
 						}
@@ -790,7 +906,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 								caRequestID = $"{order.id}-{order.certificate.id}";
 								try
 								{
-									CAConnectorCertificate connCert = await GetSingleRecord($"{order.id}-{order.certificate.id}");
+									AnyCAPluginCertificate connCert = await GetSingleRecord($"{order.id}-{order.certificate.id}");
 									certificate = connCert.Certificate;
 									status = connCert.Status;
 									statusMessage = $"Post-submission approval of order {order.id} returned success";
@@ -798,7 +914,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 								catch (Exception getRecordEx)
 								{
 									_logger.LogWarning($"Unable to retrieve certificate {order.certificate.id} for order {order.id}: {getRecordEx.Message}");
-									status = (int)RequestDisposition.UNKNOWN;
+									status = (int)EndEntityStatus.INPROCESS;
 									statusMessage = $"Post-submission approval of order {order.id} was successful, but pickup failed";
 								}
 							}
@@ -807,8 +923,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 					else
 					{
 						_logger.LogWarning("The request disposition is for this enrollment could not be determined.");
-						status = (int)RequestDisposition.UNKNOWN;
-						statusMessage = "The request disposition could not be determined.";
+						throw new Exception($"The request disposition is for this enrollment could not be determined.");
 					}
 				}
 			}
@@ -821,6 +936,12 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			};
 		}
 
+		/// <summary>
+		/// Convert DigiCert status string into a EndEntityStatus code
+		/// </summary>
+		/// <param name="status"></param>
+		/// <param name="orderId"></param>
+		/// <returns></returns>
 		private int GetCertificateStatusFromCA(string status, int orderId)
 		{
 			switch (status)
@@ -828,32 +949,43 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				case "issued":
 				case "approved":
 				case "expired":
-					return (int)RequestDisposition.ISSUED;
+					return (int)EndEntityStatus.GENERATED;
 
 				case "processing":
 				case "reissue_pending":
 				case "pending": // Pending from DigiCert means it will be issued after validation
-					return (int)RequestDisposition.EXTERNAL_VALIDATION;
+				case "waiting_pickup":
+					return (int)EndEntityStatus.EXTERNALVALIDATION;
 
 				case "denied":
-					return (int)RequestDisposition.DENIED;
+				case "rejected":
+				case "canceled":
+					return (int)EndEntityStatus.FAILED;
 
 				case "revoked":
-					return (int)RequestDisposition.REVOKED;
+					return (int)EndEntityStatus.REVOKED;
 
 				case "needs_approval": // This indicates that the request has to be approved through DigiCert, which is a misconfiguration
 					_logger.LogWarning($"Order {orderId} needs to be approved in the DigiCert portal prior to issuance");
-					return (int)RequestDisposition.EXTERNAL_VALIDATION;
+					return (int)EndEntityStatus.EXTERNALVALIDATION;
 
 				default:
-					_logger.LogWarning($"Order {orderId} has unexpected status {status}");
-					return (int)RequestDisposition.UNKNOWN;
+					_logger.LogError($"Order {orderId} has unexpected status {status}");
+					throw new Exception($"Order {orderId} has unknown status {status}");
 			}
 		}
 
+		/// <summary>
+		/// Get the list of reissues for a given order
+		/// </summary>
+		/// <param name="digiClient"></param>
+		/// <param name="orderId"></param>
+		/// <returns></returns>
+		/// <exception cref="Exception"></exception>
 		private List<StatusOrder> GetReissues(CertCentralClient digiClient, int orderId)
 		{
 			_logger.LogTrace($"Getting Reissues for order {orderId}");
+			List<string> reqIds = new List<string>();
 			List<StatusOrder> reissueCerts = new List<StatusOrder>();
 			ListReissueResponse reissueResponse = digiClient.ListReissues(new ListReissueRequest(orderId));
 			if (reissueResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
@@ -870,7 +1002,8 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 					{
 						order_id = orderId,
 						certificate_id = reissueCert.id,
-						status = reissueCert.status
+						status = reissueCert.status,
+						serialNum = reissueCert.serial_number
 					};
 					reissueCerts.Add(reissueStatusOrder);
 				}
@@ -879,6 +1012,13 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			return reissueCerts;
 		}
 
+		/// <summary>
+		/// Get the list of duplicate certs for a given order
+		/// </summary>
+		/// <param name="digiClient"></param>
+		/// <param name="orderId"></param>
+		/// <returns></returns>
+		/// <exception cref="Exception"></exception>
 		private List<StatusOrder> GetDuplicates(CertCentralClient digiClient, int orderId)
 		{
 			_logger.LogTrace($"Getting Duplicates for order {orderId}");
@@ -898,7 +1038,8 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 					{
 						order_id = orderId,
 						certificate_id = dupeCert.id,
-						status = dupeCert.status
+						status = dupeCert.status,
+						serialNum = dupeCert.serial_number
 					};
 					dupeCerts.Add(dupeStatusOrder);
 				}
@@ -977,6 +1118,11 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			return await ExtractEnrollmentResult(client, client.ReissueCertificate(reissueRequest), commonName);
 		}
 
+		/// <summary>
+		/// Verify that the given product ID is valid
+		/// </summary>
+		/// <param name="productId"></param>
+		/// <exception cref="Exception"></exception>
 		private void CheckProductExistence(string productId)
 		{
 			// Check that the product type is still valid.
@@ -1023,8 +1169,12 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			return date + "+" + time;
 		}
 
-
-		private List<CAConnectorCertificate> GetAllConnectorCertsForOrder(string caRequestID)
+		/// <summary>
+		/// Get all of the certs for a given order, including reissues and duplicates, in CAConnectorCertificate form
+		/// </summary>
+		/// <param name="caRequestID"></param>
+		/// <returns></returns>
+		private List<AnyCAPluginCertificate> GetAllConnectorCertsForOrder(string caRequestID)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 			// Split ca request id into order and cert id
@@ -1039,38 +1189,52 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 			var orderCerts = GetAllCertsForOrder(orderId);
 
-			List<CAConnectorCertificate> certList = new List<CAConnectorCertificate>();
+			List<AnyCAPluginCertificate> certList = new List<AnyCAPluginCertificate>();
 
 			foreach (var cert in orderCerts)
 			{
-				string certificate = null;
-				string caReqId = cert.order_id + "-" + cert.certificate_id;
-				int status = GetCertificateStatusFromCA(cert.status, orderId);
-				if (status == (int)RequestDisposition.ISSUED || status == (int)RequestDisposition.REVOKED || status == (int)RequestDisposition.UNKNOWN)
+				try
 				{
-					// We have a status where there may be a cert to download, try to download it
-					CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest(certId));
-					if (certificateChainResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
+					string certificate = null;
+					string caReqId = cert.order_id + "-" + cert.certificate_id;
+					int status = GetCertificateStatusFromCA(cert.status, orderId);
+					if (status == (int)EndEntityStatus.GENERATED || status == (int)EndEntityStatus.REVOKED)
 					{
-						certificate = certificateChainResponse.Intermediates[0].PEM;
+						// We have a status where there may be a cert to download, try to download it
+						CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest(certId));
+						if (certificateChainResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
+						{
+							certificate = certificateChainResponse.Intermediates[0].PEM;
+						}
+						else
+						{
+							throw new Exception($"Unexpected error downloading certificate {certId} for order {orderId}: {certificateChainResponse.Errors.FirstOrDefault()?.message}");
+						}
 					}
-					else
+					var connCert = new AnyCAPluginCertificate
 					{
-						_logger.LogWarning($"Unexpected error downloading certificate {certId} for order {orderId}: {certificateChainResponse.Errors.FirstOrDefault()?.message}");
-					}
+						CARequestID = caReqId,
+						Certificate = certificate,
+						Status = status,
+						ProductID = orderResponse.product.name_id,
+						RevocationDate = GetRevocationDate(orderResponse)
+					};
+					certList.Add(connCert);
 				}
-				var connCert = new CAConnectorCertificate
+				catch (Exception ex)
 				{
-					CARequestID = caReqId,
-					Certificate = certificate,
-					Status = status,
-					ProductID = orderResponse.product.name_id,
-					RevocationDate = GetRevocationDate(orderResponse)
-				};
-				certList.Add(connCert);
+					_logger.LogWarning($"Error processing cert {cert.order_id}-{cert.certificate_id}: {ex.Message}. Skipping record.");
+				}
 			}
 			return certList;
 		}
+
+		/// <summary>
+		/// Get all of the certs for a given order, including reissues and duplicates, in StatusOrder form
+		/// </summary>
+		/// <param name="orderId"></param>
+		/// <returns></returns>
+		/// <exception cref="COMException"></exception>
 		private List<StatusOrder> GetAllCertsForOrder(int orderId)
 		{
 			CertCentralClient client = CertCentralClientUtilities.BuildCertCentralClient(_config);
@@ -1098,10 +1262,13 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			{
 				order_id = orderId,
 				certificate_id = orderResponse.certificate.id,
-				status = orderStatusString
+				status = orderStatusString,
+				serialNum = orderResponse.certificate.serial_number
 			};
-			List<StatusOrder> orderCerts = new List<StatusOrder>();
-			orderCerts.Add(primary);
+			List<StatusOrder> orderCerts = new List<StatusOrder>
+			{
+				primary
+			};
 			if (reissueCerts?.Count > 0)
 			{
 				orderCerts.AddRange(reissueCerts);
@@ -1110,7 +1277,33 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			{
 				orderCerts.AddRange(dupeCerts);
 			}
-			return orderCerts;
+			List<StatusOrder> retCerts = new List<StatusOrder>();
+			List<string> reqIds = new List<string>();
+			List<string> serNums = new List<string>();
+			foreach (var cert in orderCerts)
+			{
+				string req = $"{cert.order_id}-{cert.certificate_id}";
+
+				// Listing reissues/duplicates can also return the primary certificate. This check insures that only one copy of the primary certificate gets added to the sync list.
+				if (!reqIds.Contains(req))
+				{
+					// This is actually caused by an issue in the DigiCert API. For some orders (but not all), retrieving the reissued/duplicate certificates on an order
+					// instead just retrieves multiple copies of the primary certificate on that order. Since the gateway database must have unique certificates
+					// (serial number column is unique), we work around this by only syncing the primary cert in these cases. Other orders that correctly retrieve the
+					// reissued/duplicate certificates will pass this check.
+					if (!serNums.Contains(req))
+					{
+						reqIds.Add(req);
+						retCerts.Add(cert);
+						serNums.Add(cert.serialNum);
+					}
+					else
+					{
+						_logger.LogWarning($"Duplicate certificate serial numbers found. Only one will be synced. Order ID: {cert.order_id}");
+					}
+				}
+			}
+			return retCerts;
 		}
 	}
 }
