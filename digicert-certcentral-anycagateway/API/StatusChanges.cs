@@ -27,6 +27,9 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert.API
 
 		[JsonProperty("status")]
 		public string status { get; set; }
+
+		[JsonIgnore]
+		public string serialNum { get; set; }
 	}
 
 	public class StatusChangesResponse : CertCentralBaseResponse
