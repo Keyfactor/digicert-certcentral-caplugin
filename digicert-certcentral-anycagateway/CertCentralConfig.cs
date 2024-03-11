@@ -12,5 +12,6 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		public string Region { get; set; } = "US";
 		public int? DivisionId { get; set; }
 		public bool? RevokeCertificateOnly { get; set; }
+		public bool Enabled { get; set; } = true;
 	}
 }
