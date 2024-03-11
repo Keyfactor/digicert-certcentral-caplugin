@@ -352,6 +352,13 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 					Hidden = false,
 					DefaultValue = false,
 					Type = "Boolean"
+				},
+				[CertCentralConstants.Config.ENABLED] = new PropertyConfigInfo()
+				{
+					Comments = "Flag to Enable or Disable gateway functionality. Disabling is primarily used to allow creation of the CA prior to configuration information being available.",
+					Hidden = false,
+					DefaultValue = true,
+					Type = "Boolean"
 				}
 			};
 		}
@@ -484,6 +491,14 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		public async Task Ping()
 		{
 			_logger.MethodEntry(LogLevel.Trace);
+			if (!_config.Enabled)
+			{
+				_logger.LogWarning($"The CA is currently in the Disabled state. It must be Enabled to perform operations. Skipping connectivity test...");
+				_logger.MethodExit(LogLevel.Trace);
+				return;
+			}
+
+			
 			try
 			{
 				CertCentralClient client = CertCentralClientUtilities.BuildCertCentralClient(_config);
@@ -693,6 +708,20 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		public async Task ValidateCAConnectionInfo(Dictionary<string, object> connectionInfo)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
+			try
+			{
+				if (!(bool)connectionInfo[CertCentralConstants.Config.ENABLED])
+				{
+					_logger.LogWarning($"The CA is currently in the Disabled state. It must be Enabled to perform operations. Skipping validation...")
+					_logger.MethodExit(LogLevel.Trace);
+					return;
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError($"Exception: {LogHandler.FlattenException(ex)}");
+			}
+			
 			List<string> errors = new List<string>();
 
 			_logger.LogTrace("Checking the API Key.");
