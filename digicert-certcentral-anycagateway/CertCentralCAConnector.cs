@@ -712,7 +712,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			{
 				if (!(bool)connectionInfo[CertCentralConstants.Config.ENABLED])
 				{
-					_logger.LogWarning($"The CA is currently in the Disabled state. It must be Enabled to perform operations. Skipping validation...")
+					_logger.LogWarning($"The CA is currently in the Disabled state. It must be Enabled to perform operations. Skipping validation...");
 					_logger.MethodExit(LogLevel.Trace);
 					return;
 				}
