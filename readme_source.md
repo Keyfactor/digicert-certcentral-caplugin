@@ -17,7 +17,7 @@ In order to enroll for certificates the Keyfactor Command server must trust the 
   ```json
 {  
 	"extensions": {  
-		"Keyfactor.AnyGateway.Extensions.ICAConnector": {  
+		"Keyfactor.AnyGateway.Extensions.IAnyCAPlugin": {  
 			"DigiCertCAConnector": {  
 				"assemblypath": "../DigiCertCAGateway.dll",  
 				"TypeFullName": "Keyfactor.Extensions.CAGateway.DigiCert.CertCentralCAConnector"  

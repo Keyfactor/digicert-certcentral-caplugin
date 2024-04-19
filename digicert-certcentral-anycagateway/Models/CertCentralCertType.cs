@@ -1,5 +1,5 @@
-﻿using Keyfactor.Extensions.CAGateway.DigiCert.API;
-using Keyfactor.Extensions.CAGateway.DigiCert.Client;
+﻿using Keyfactor.Extensions.CAPlugin.DigiCert.API;
+using Keyfactor.Extensions.CAPlugin.DigiCert.Client;
 using Keyfactor.Logging;
 using Microsoft.Extensions.Logging;
 
@@ -9,7 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.Models
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.Models
 {
     public class CertCentralCertType
     {

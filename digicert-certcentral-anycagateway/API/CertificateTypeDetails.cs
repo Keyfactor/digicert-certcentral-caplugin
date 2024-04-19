@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.API
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 {
 	/// <summary>
 	/// Request to get the details for a specific certificate type.

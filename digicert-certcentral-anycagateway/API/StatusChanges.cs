@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.API
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 {
 	public class StatusChangesRequest : CertCentralBaseRequest
 	{
@@ -27,6 +27,9 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert.API
 
 		[JsonProperty("status")]
 		public string status { get; set; }
+
+		[JsonIgnore]
+		public string serialNum { get; set; }
 	}
 
 	public class StatusChangesResponse : CertCentralBaseResponse

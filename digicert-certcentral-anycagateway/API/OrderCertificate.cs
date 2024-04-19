@@ -1,4 +1,4 @@
-﻿using Keyfactor.Extensions.CAGateway.DigiCert.Models;
+﻿using Keyfactor.Extensions.CAPlugin.DigiCert.Models;
 using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 
@@ -10,9 +10,9 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.API
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 {
-    public class OrderRequest : CertCentralBaseRequest
+	public class OrderRequest : CertCentralBaseRequest
 	{
 		public OrderRequest(CertCentralCertType certType)
 		{
@@ -56,6 +56,9 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert.API
 
 		[JsonProperty("custom_fields")]
 		public List<MetadataField> CustomFields { get; set; }
+
+		[JsonProperty("skip_approval")]
+		public bool SkipApproval {  get; set; }
 
 		public void SetOrganization(int? organizationId)
 		{

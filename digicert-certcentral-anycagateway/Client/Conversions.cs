@@ -10,7 +10,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.Client
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 {
 	public class Conversions
 	{

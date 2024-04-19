@@ -1,5 +1,5 @@
-﻿using Keyfactor.Extensions.CAGateway.DigiCert.API;
-using Keyfactor.Extensions.CAGateway.DigiCert.Models;
+﻿using Keyfactor.Extensions.CAPlugin.DigiCert.API;
+using Keyfactor.Extensions.CAPlugin.DigiCert.Models;
 using Keyfactor.Logging;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 using static Keyfactor.PKI.X509.X509Utilities;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.Client
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 {
     public class CertCentralCredentials
 	{
@@ -473,7 +473,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert.Client
 			return dlCertificateRequestResponse;
 		}
 
-		public ListCertificateOrdersResponse ListAllCertificateOrders()
+		public ListCertificateOrdersResponse ListAllCertificateOrders(bool ignoreExpired = false, int expiredWindow = 0)
 		{
 			int batch = 1000;
 			ListCertificateOrdersResponse totalResponse = new ListCertificateOrdersResponse();
@@ -483,7 +483,9 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert.Client
 				ListCertificateOrdersRequest request = new ListCertificateOrdersRequest()
 				{
 					limit = batch,
-					offset = totalResponse.orders.Count
+					offset = totalResponse.orders.Count,
+					ignoreExpired = ignoreExpired,
+					expiredWindow = expiredWindow
 				};
 
 				CertCentralResponse response = Request(request, request.BuildParameters());
