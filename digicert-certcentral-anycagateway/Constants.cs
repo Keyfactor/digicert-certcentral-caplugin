@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert
+namespace Keyfactor.Extensions.CAPlugin.DigiCert
 {
 	public class Constants
 	{

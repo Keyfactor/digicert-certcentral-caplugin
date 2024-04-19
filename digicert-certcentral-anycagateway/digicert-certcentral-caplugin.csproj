@@ -2,10 +2,10 @@
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
-    <RootNamespace>Keyfactor.Extensions.CAGateway.DigiCert</RootNamespace>
+    <RootNamespace>Keyfactor.Extensions.CAPlugin.DigiCert</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
-    <AssemblyName>DigicertCAGateway</AssemblyName>
+    <AssemblyName>DigicertCAPlugin</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

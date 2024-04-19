@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.Models
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.Models
 {
     public class Error
     {

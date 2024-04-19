@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert
+namespace Keyfactor.Extensions.CAPlugin.DigiCert
 {
 	public static class Utilities
 	{
