@@ -1,6 +1,6 @@
-# digicert-certcentral-anycagateway
+# digicert-certcentral-caplugin
 
-DigiCert CertCentral plugin for the AnyCA Gateway framework
+DigiCert CertCentral plugin for the AnyCA REST Gateway framework
 
 #### Integration status: Prototype - Demonstration quality. Not for use in customer environments.
 
@@ -10,9 +10,9 @@ DigiCert CertCentral plugin for the AnyCA Gateway framework
 This repository contains an AnyGateway CA Connector, which is a plugin to the Keyfactor AnyGateway. AnyGateway CA Connectors allow Keyfactor Command to be used for inventory, issuance, and revocation of certificates from a third-party certificate authority.
 
 
-## Support for digicert-certcentral-anycagateway
+## Support for digicert-certcentral-caplugin
 
-digicert-certcentral-anycagateway is open source and community supported, meaning that there is no support guaranteed from Keyfactor Support for these tools.
+digicert-certcentral-caplugin is open source and community supported, meaning that there is no support guaranteed from Keyfactor Support for these tools.
 
 ###### To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
 
