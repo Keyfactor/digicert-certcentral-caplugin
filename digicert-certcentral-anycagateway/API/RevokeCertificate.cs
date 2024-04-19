@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.API
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 {
 	public class RevokeCertificateRequest : CertCentralBaseRequest
 	{

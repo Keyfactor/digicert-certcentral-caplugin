@@ -1,4 +1,4 @@
-﻿using Keyfactor.Extensions.CAGateway.DigiCert.Models;
+﻿using Keyfactor.Extensions.CAPlugin.DigiCert.Models;
 using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 
@@ -10,7 +10,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.API
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 {
 	public class OrderRequest : CertCentralBaseRequest
 	{

@@ -1,4 +1,4 @@
-﻿using Keyfactor.Extensions.CAGateway.DigiCert.Models;
+﻿using Keyfactor.Extensions.CAPlugin.DigiCert.Models;
 using Newtonsoft.Json;
 
 using System;
@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.API
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 {
 	public class ListCertificateOrdersRequest : CertCentralBaseRequest
 	{

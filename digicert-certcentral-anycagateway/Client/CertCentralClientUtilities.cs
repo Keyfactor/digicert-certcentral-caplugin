@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.Client
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 {
 	/// <summary>
 	/// Static class containing some utility methods for the cert central client.
@@ -17,7 +17,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert.Client
 		/// <summary>
 		/// Private instance of the logger.
 		/// </summary>
-		private static ILogger Logger => LogHandler.GetClassLogger<CertCentralCAConnector>();
+		private static ILogger Logger => LogHandler.GetClassLogger<CertCentralCAPlugin>();
 
 		/// <summary>
 		/// Uses the <see cref="CertCentralConfig"/> to build a DigiCert client.

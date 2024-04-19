@@ -1,9 +1,9 @@
 ﻿using Keyfactor.AnyGateway.Extensions;
 using Keyfactor.Common;
 using Keyfactor.Common.Exceptions;
-using Keyfactor.Extensions.CAGateway.DigiCert.API;
-using Keyfactor.Extensions.CAGateway.DigiCert.Client;
-using Keyfactor.Extensions.CAGateway.DigiCert.Models;
+using Keyfactor.Extensions.CAPlugin.DigiCert.API;
+using Keyfactor.Extensions.CAPlugin.DigiCert.Client;
+using Keyfactor.Extensions.CAPlugin.DigiCert.Models;
 using Keyfactor.Logging;
 using Keyfactor.PKI.Enums;
 
@@ -20,11 +20,11 @@ using System.Runtime.InteropServices;
 
 using static Keyfactor.PKI.PKIConstants.Microsoft;
 
-using CertCentralConstants = Keyfactor.Extensions.CAGateway.DigiCert.Constants;
+using CertCentralConstants = Keyfactor.Extensions.CAPlugin.DigiCert.Constants;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert
+namespace Keyfactor.Extensions.CAPlugin.DigiCert
 {
-	public class CertCentralCAConnector : IAnyCAPlugin
+	public class CertCentralCAPlugin : IAnyCAPlugin
 	{
 		private CertCentralConfig _config;
 		private readonly ILogger _logger;
@@ -32,9 +32,9 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 		private Dictionary<int, string> DCVTokens { get; } = new Dictionary<int, string>();
 
-		public CertCentralCAConnector()
+		public CertCentralCAPlugin()
 		{
-			_logger = LogHandler.GetClassLogger<CertCentralCAConnector>();
+			_logger = LogHandler.GetClassLogger<CertCentralCAPlugin>();
 		}
 		public void Initialize(IAnyCAPluginConfigProvider configProvider, ICertificateDataReader certificateDataReader)
 		{

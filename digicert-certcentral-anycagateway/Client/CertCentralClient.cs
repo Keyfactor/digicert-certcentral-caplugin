@@ -1,5 +1,5 @@
-﻿using Keyfactor.Extensions.CAGateway.DigiCert.API;
-using Keyfactor.Extensions.CAGateway.DigiCert.Models;
+﻿using Keyfactor.Extensions.CAPlugin.DigiCert.API;
+using Keyfactor.Extensions.CAPlugin.DigiCert.Models;
 using Keyfactor.Logging;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 using static Keyfactor.PKI.X509.X509Utilities;
 
-namespace Keyfactor.Extensions.CAGateway.DigiCert.Client
+namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 {
     public class CertCentralCredentials
 	{
