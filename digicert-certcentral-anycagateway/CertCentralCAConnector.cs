@@ -301,6 +301,8 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 
 			_logger.LogTrace("Making request to Enroll");
 
+			orderRequest.SkipApproval = true;
+
 			switch (enrollmentType)
 			{
 				case EnrollmentType.New:
@@ -426,7 +428,14 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 				CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest(certId));
 				if (certificateChainResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
 				{
-					certificate = certificateChainResponse.Intermediates[0].PEM;
+					if (certificateChainResponse.Intermediates.Count > 0)
+					{
+						certificate = certificateChainResponse.Intermediates[0].PEM;
+					}
+					else
+					{
+						throw new Exception($"No PEM certificate returned for certificate {certId} in order {orderId}. This could be due to a certificate that provisioned via an alternative method, such as a physical token.");
+					}
 				}
 				else
 				{
@@ -553,10 +562,12 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			RevokeCertificateResponse revokeResponse;
 			if (_config.RevokeCertificateOnly.HasValue && _config.RevokeCertificateOnly.Value)
 			{
+				_logger.LogInformation($"Attempting to revoke certificate with CA Request Id {caRequestID} and serial number {hexSerialNumber}. RevokeCertificateOnly is true, so revoking single certificate.");
 				revokeResponse = client.RevokeCertificate(new RevokeCertificateRequest(certId) { comments = Conversions.RevokeReasonToString(revocationReason) });
 			}
 			else
 			{
+				_logger.LogInformation($"Attempting to revoke certificate with CA Request Id {caRequestID} and serial number {hexSerialNumber}. RevokeCertificateOnly is false, so revoking the entire order.");
 				revokeResponse = client.RevokeCertificate(new RevokeCertificateByOrderRequest(orderResponse.id) { comments = Conversions.RevokeReasonToString(revocationReason) });
 			}
 
@@ -606,12 +617,27 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			List<string> skippedOrders = new List<string>();
 			int certCount = 0;
 
+			string syncCAstring = string.Join(",", _config.SyncCAFilter ?? new List<string>());
+			_logger.LogTrace($"Sync CAs: {syncCAstring}");
+			List<string> caList = _config.SyncCAFilter ?? new List<string>();
+			caList.ForEach(c => c.ToUpper());
+
+
 			if (fullSync)
 			{
+				bool ignoreExpired = false; int expiredWindow = 0;
+				if (_config.FilterExpiredOrders.HasValue && _config.FilterExpiredOrders.Value)
+				{
+					ignoreExpired = true;
+					if (_config.SyncExpirationDays.HasValue)
+					{
+						expiredWindow = _config.SyncExpirationDays.Value;
+					}
+				}
 				long time = DateTime.Now.Ticks;
 				long starttime = time;
 				_logger.LogDebug($"SYNC: Starting sync at time {time}");
-				ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders();
+				ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow);
 				if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 				{
 					Error error = ordersResponse.Errors[0];
@@ -629,7 +655,11 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 							cancelToken.ThrowIfCancellationRequested();
 							string caReqId = orderDetails.id + "-" + orderDetails.certificate.id;
 							_logger.LogDebug($"SYNC: Retrieving certs for order id {orderDetails.id}");
-							orderCerts = GetAllConnectorCertsForOrder(caReqId);
+							orderCerts = GetAllConnectorCertsForOrder(caReqId, caList);
+							if (orderCerts == null || orderCerts.Count == 0)
+							{
+								continue;
+							}
 							_logger.LogDebug($"SYNC: Retrieved {orderCerts.Count} certs at time {DateTime.Now.Ticks}");
 						}
 						catch
@@ -668,7 +698,11 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 						{
 							cancelToken.ThrowIfCancellationRequested();
 							string caReqId = order.order_id + "-" + order.certificate_id;
-							orderCerts = GetAllConnectorCertsForOrder(caReqId);
+							orderCerts = GetAllConnectorCertsForOrder(caReqId, caList);
+							if (orderCerts == null || orderCerts.Count > 0)
+							{
+								continue;
+							}
 						}
 						catch
 						{
@@ -1209,7 +1243,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 		/// </summary>
 		/// <param name="caRequestID"></param>
 		/// <returns></returns>
-		private List<AnyCAPluginCertificate> GetAllConnectorCertsForOrder(string caRequestID)
+		private List<AnyCAPluginCertificate> GetAllConnectorCertsForOrder(string caRequestID, List<string> caFilterIds)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 			// Split ca request id into order and cert id
@@ -1221,6 +1255,12 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			// Get status of cert and the cert itself from Digicert
 			CertCentralClient client = CertCentralClientUtilities.BuildCertCentralClient(_config);
 			ViewCertificateOrderResponse orderResponse = client.ViewCertificateOrder(new ViewCertificateOrderRequest((uint)orderId));
+
+			if (caFilterIds != null && caFilterIds.Count > 0 && !caFilterIds.Contains(orderResponse.certificate.ca_cert.Id.ToUpper()))
+			{
+				_logger.LogTrace($"Found order ID {orderId} that does not match SyncCAFilter. CA ID: {orderResponse.certificate.ca_cert.Id} Skipping...");
+				return null;
+			}
 
 			var orderCerts = GetAllCertsForOrder(orderId);
 
