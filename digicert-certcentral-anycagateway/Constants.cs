@@ -26,6 +26,7 @@ namespace Keyfactor.Extensions.CAGateway.DigiCert
 			public const string CA_CERT_ID = "CACertId";
 			public const string RENEWAL_WINDOW = "RenewalWindowDays";
 			public const string REVOKE_CERT = "RevokeCertificateOnly";
+			public const string ENABLED = "Enabled";
 		}
 
 		public class RequestAttributes
