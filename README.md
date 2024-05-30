@@ -1,23 +1,21 @@
-# digicert-certcentral-anycagateway
 
-DigiCert CertCentral plugin for the AnyCA Gateway framework
+# digicert-certcentral-caplugin
 
-#### Integration status: Prototype - Demonstration quality. Not for use in customer environments.
+DigiCert CertCentral plugin for the AnyCA REST Gateway framework
 
+#### Integration status: Production - Ready for use in production environments.
 
-## About the Keyfactor AnyGateway CA Connector
+## About the Keyfactor AnyCA Gateway DCOM Connector
 
-This repository contains an AnyGateway CA Connector, which is a plugin to the Keyfactor AnyGateway. AnyGateway CA Connectors allow Keyfactor Command to be used for inventory, issuance, and revocation of certificates from a third-party certificate authority.
+This repository contains an AnyCA Gateway Connector, which is a plugin to the Keyfactor AnyGateway. AnyCA Gateway Connectors allow Keyfactor Command to be used for inventory, issuance, and revocation of certificates from a third-party certificate authority.
 
+## Support for digicert-certcentral-caplugin
 
-
-
-## Support for digicert-certcentral-anycagateway
-
-digicert-certcentral-anycagateway is open source and community supported, meaning that there is **no SLA** applicable for these tools.
+digicert-certcentral-caplugin is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com
 
 ###### To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
 
+---
 
 
 ---
@@ -26,42 +24,74 @@ digicert-certcentral-anycagateway is open source and community supported, meanin
 
 
 
+## Keyfactor AnyCA Gateway Framework Supported
+The Keyfactor gateway framework implements common logic shared across various gateway implementations and handles communication with Keyfactor Command. The gateway framework hosts gateway implementations or plugins that understand how to communicate with specific CAs. This allows you to integrate your third-party CAs with Keyfactor Command such that they behave in a manner similar to the CAs natively supported by Keyfactor Command.
 
-## Keyfactor AnyGateway Framework Supported
 
-This gateway was compiled against version 1.0.0 of the AnyGateway Framework.  You will need at least this version of the AnyGateway Framework Installed.  If you have a later AnyGateway Framework Installed you will probably need to add binding redirects in the CAProxyServer.exe.config file to make things work properly.
+
+
+This gateway extension was compiled against version 24.2.0 of the AnyCA Gateway DCOM Framework.  You will need at least this version of the framework Installed. If you have a later AnyGateway Framework Installed you will probably need to add binding redirects in the CAProxyServer.exe.config file to make things work properly.
+
+
+[Keyfactor CAGateway Install Guide](https://software.keyfactor.com/Guides/AnyGateway_Generic/Content/AnyGateway/Introduction.htm)
 
 
 
 ---
 
 
-# Introduction
-This AnyGateway plug-in enables issuance, revocation, and synchronization of certificates from DigiCert's CertCentral offering.  
+﻿# Introduction
+This AnyCA REST Gateway plug-in enables issuance, revocation, and synchronization of certificates from DigiCert's CertCentral offering.  
 # Prerequisites
 
 ## Certificate Chain
 
 In order to enroll for certificates the Keyfactor Command server must trust the trust chain. Once you create your Root and/or Subordinate CA, make sure to import the certificate chain into the AnyGateway and Command Server certificate store
 
+## Installation
+1. Download latest successful build from [GitHub Releases](../../releases/latest)
 
-# Install
-* Download latest successful build from [GitHub Releases](../../releases/latest)
+2. Copy DigicertCAPlugin.dll and DigicertCAPlugin.deps.json to the Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions directory
 
-* Copy DigiCertCAGateway.dll and DigiCertCAGateway.deps.json to the Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions directory
-
-* Update the manifest.json file located in Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions\Connectors
+3. Update the manifest.json file located in Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions\Connectors
   * If the manifest.json file or the Connectors folder do not exist, create them.
-  ```json
+```json
 {  
 	"extensions": {  
-		"Keyfactor.AnyGateway.Extensions.ICAConnector": {  
-			"DigiCertCAConnector": {  
-				"assemblypath": "../DigiCertCAGateway.dll",  
-				"TypeFullName": "Keyfactor.Extensions.CAGateway.DigiCert.CertCentralCAConnector"  
+		"Keyfactor.AnyGateway.Extensions.IAnyCAPlugin": {  
+			"CertCentralCAPlugin": {  
+				"assemblypath": "../DigicertCAPlugin.dll",  
+				"TypeFullName": "Keyfactor.Extensions.CAPlugin.DigiCert.CertCentralCAPlugin"  
 			}  
 		}  
 	}  
 }
-  ```
+```
+
+4. Restart the AnyCA Gateway service
+
+5. Navigate to the AnyCA Gateway REST portal and verify that the Gateway recognizes the DigiCert plugin by hovering over the ⓘ symbol to the right of the Gateway on the top left of the portal.
+
+
+## Configuration
+
+1. Follow the official AnyCA Gateway REST documentation to define a new Certificate Authority, using the following information to configure the CA Connection section:
+
+	* Enabled - whether the DigiCert gateway should be enabled or not. Should almost always be set to 'true'
+	* APIKey - the API key the Gateway should use to communicate with the DigiCert API. Can be generated from the DigiCert portal.
+	* Region - (Optional) The geographic region associated with your DigiCert account. Valid values are US and EU. If not provided, default of US is used.
+	* DivisionId - (Optional) If your CertCentral account has multiple divisions AND uses any custom per-division product settings, provide a division ID for the gateway to use for enrollment. Otherwise, omit this setting. NOTE: Division ID is currently only use for product type lookups, it will not affect any other gateway functionality
+	* RevokeCertificateOnly - (Optional) By default, when revoking a certificate through DigiCert, the entire order gets revoked. Set this value to 'true' if you want to only revoke individual certificates instead.
+	* SyncCAFilter - (Optional) If you list one or more issuing CA IDs here from DigiCert, the sync process will only return certs issued by one of those CAs. Leave this option out to sync all certs from all CAs.
+	* FilterExpiredOrders - (Optional) If set to 'true', syncing will apply a filter to NOT return certs that are not expired, or only recently expired. See the next configuration value to set that window. Setting this to 'false' will return all certs regardless of expiration.
+	* SyncExpirationDays - (Optional) Only used if FilterExpiredOrders is set to 'true'. Specifies the number of days in the past to sync expired certs. For example, a value of 30 means sync will continue to return certs that have expired within the past 30 days. The default value if not specified is 0, meaning sync would not return any certs expired before the current day.
+
+
+2. Follow the official AnyCA Gateway REST documentation to define one or more Certificate Profiles. These are what will show up as Templates in Keyfactor Command. You need at least one profile for each product type you wish to be able to enroll for. It is recommended to include the product type in the profile name to make them easier to identify. Use the following information to configure each profile:
+
+	* LifetimeDays - (Optional) The number of days of validity to use when requesting certs. If not specified, the default of 365 will be used. NOTE FOR RENEWALS: If the LifetimeDays value is evenly divisible by 365, when a certificate is renewed, the lifetime will be treated as years instead of days, so the new certificate's expiration will be the same month and day as the original certificate (assuming you are renewing close enough to expiration that the new expiration date fits within the maximum validity)
+	* CACertId - (Optional) ID of issuing CA to be used by DigiCert. If not specified, the default for your account will be used.
+	* Organization-Name - (Optional) If specified, will override any organzation name provided in the subject of the cert request on enrollment. Useful for requests (such as ACME) that contain no subject.
+	* RenewalWindowDays - (Optional) The number of days from expiration that the gateway should do a reissue rather than a renewal. Default if not provided is 90, meaning any renewal request for certs that expired in more than 90 days will be treated as a reissue.
+
 
