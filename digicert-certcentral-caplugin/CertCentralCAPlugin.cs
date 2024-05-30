@@ -6,6 +6,7 @@ using Keyfactor.Extensions.CAPlugin.DigiCert.Client;
 using Keyfactor.Extensions.CAPlugin.DigiCert.Models;
 using Keyfactor.Logging;
 using Keyfactor.PKI.Enums;
+using Keyfactor.PKI.Enums.EJBCA;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
