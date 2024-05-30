@@ -6,10 +6,6 @@ This AnyCA REST Gateway plug-in enables issuance, revocation, and synchronizatio
 
 In order to enroll for certificates the Keyfactor Command server must trust the trust chain. Once you create your Root and/or Subordinate CA, make sure to import the certificate chain into the AnyGateway and Command Server certificate store
 
-## Compatibility
-The DigiCert AnyCA plugin is compatible with the Keyfactor AnyCA Gateway REST 24.2 and later
-
-
 ## Installation
 1. Download latest successful build from [GitHub Releases](../../releases/latest)
 

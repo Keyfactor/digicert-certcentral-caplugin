@@ -7,6 +7,6 @@
   "link_github": false,
   "update_catalog": false,
   "description": "DigiCert CertCentral plugin for the AnyCA REST Gateway framework",
-  "gateway_framework": "1.0.0",
+  "gateway_framework": "24.2.0",
   "release_dir": "digicert-certcentral-caplugin/bin/Release/net6.0"
 }
