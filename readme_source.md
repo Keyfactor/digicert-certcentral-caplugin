@@ -32,7 +32,7 @@ The DigiCert AnyCA plugin is compatible with the Keyfactor AnyCA Gateway REST 24
 
 4. Restart the AnyCA Gateway service
 
-5. Navigate to the AnyCA Gateway REST portal and verify that the Gateway recognizes the GoDaddy plugin by hovering over the ⓘ symbol to the right of the Gateway on the top left of the portal.
+5. Navigate to the AnyCA Gateway REST portal and verify that the Gateway recognizes the DigiCert plugin by hovering over the ⓘ symbol to the right of the Gateway on the top left of the portal.
 
 
 ## Configuration
