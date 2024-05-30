@@ -1,11 +1,12 @@
 {
   "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
   "integration_type": "ca-gateway",
-  "name": "digicert-certcentral-anycagateway",
+  "name": "digicert-certcentral-caplugin",
   "status": "prototype",
   "support_level": "community",
   "link_github": false,
   "update_catalog": false,
-  "description": "DigiCert CertCentral plugin for the AnyCA Gateway framework",
-  "gateway_framework": "1.0.0"
+  "description": "DigiCert CertCentral plugin for the AnyCA REST Gateway framework",
+  "gateway_framework": "24.2.0",
+  "release_dir": "digicert-certcentral-caplugin/bin/Release/net6.0"
 }
