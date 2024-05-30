@@ -34,7 +34,7 @@ This gateway was compiled against version 1.0.0 of the AnyGateway Framework.  Yo
 
 
 # Introduction
-This AnyGateway plug-in enables issuance, revocation, and synchronization of certificates from DigiCert's CertCentral offering.  
+This AnyCA Gateway plug-in enables issuance, revocation, and synchronization of certificates from DigiCert's CertCentral offering.  
 # Prerequisites
 
 ## Certificate Chain
@@ -45,20 +45,20 @@ In order to enroll for certificates the Keyfactor Command server must trust the 
 # Install
 * Download latest successful build from [GitHub Releases](../../releases/latest)
 
-* Copy DigiCertCAGateway.dll and DigiCertCAGateway.deps.json to the Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions directory
+* Copy DigicertCAPlugin.dll and DigicertCAPlugin.deps.json to the Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions directory
 
 * Update the manifest.json file located in Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions\Connectors
   * If the manifest.json file or the Connectors folder do not exist, create them.
-  ```json
+```json
 {  
 	"extensions": {  
 		"Keyfactor.AnyGateway.Extensions.IAnyCAPlugin": {  
-			"DigiCertCAConnector": {  
-				"assemblypath": "../DigiCertCAGateway.dll",  
-				"TypeFullName": "Keyfactor.Extensions.CAGateway.DigiCert.CertCentralCAConnector"  
+			"CertCentralCAPlugin": {  
+				"assemblypath": "../DigicertCAPlugin.dll",  
+				"TypeFullName": "Keyfactor.Extensions.CAPlugin.DigiCert.CertCentralCAPlugin"  
 			}  
 		}  
 	}  
 }
-  ```
+```
 
