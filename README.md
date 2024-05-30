@@ -26,7 +26,7 @@ digicert-certcentral-caplugin is open source and community supported, meaning th
 
 ## Keyfactor AnyGateway Framework Supported
 
-This gateway was compiled against version 1.0.0 of the AnyGateway Framework.  You will need at least this version of the AnyGateway Framework Installed.  If you have a later AnyGateway Framework Installed you will probably need to add binding redirects in the CAProxyServer.exe.config file to make things work properly.
+This gateway was compiled against version 24.2.0 of the AnyGateway Framework.  You will need at least this version of the AnyGateway Framework Installed.  If you have a later AnyGateway Framework Installed you will probably need to add binding redirects in the CAProxyServer.exe.config file to make things work properly.
 
 
 
@@ -40,10 +40,6 @@ This AnyCA REST Gateway plug-in enables issuance, revocation, and synchronizatio
 ## Certificate Chain
 
 In order to enroll for certificates the Keyfactor Command server must trust the trust chain. Once you create your Root and/or Subordinate CA, make sure to import the certificate chain into the AnyGateway and Command Server certificate store
-
-## Compatibility
-The DigiCert AnyCA plugin is compatible with the Keyfactor AnyCA Gateway REST 24.2 and later
-
 
 ## Installation
 1. Download latest successful build from [GitHub Releases](../../releases/latest)
