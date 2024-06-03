@@ -1,5 +1,5 @@
 
-# digicert-certcentral-caplugin
+# DigiCert CertCentral AnyCA REST Gateway Plugin
 
 DigiCert CertCentral plugin for the AnyCA REST Gateway framework
 
@@ -9,9 +9,9 @@ DigiCert CertCentral plugin for the AnyCA REST Gateway framework
 
 
 
-## Support for digicert-certcentral-caplugin
+## Support for DigiCert CertCentral AnyCA REST Gateway Plugin
 
-digicert-certcentral-caplugin is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com
+DigiCert CertCentral AnyCA REST Gateway Plugin is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com
 
 ###### To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
 
