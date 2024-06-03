@@ -1,7 +1,7 @@
 {
   "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
   "integration_type": "anyca-plugin",
-  "name": "digicert-certcentral-caplugin",
+  "name": "DigiCert CertCentral AnyCA REST Gateway Plugin",
   "status": "production",
   "support_level": "kf-supported",
   "link_github": true,
