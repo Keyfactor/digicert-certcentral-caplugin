@@ -1,4 +1,6 @@
-﻿# Introduction
+﻿
+# Introduction
+
 This AnyCA REST Gateway plug-in enables issuance, revocation, and synchronization of certificates from DigiCert's CertCentral offering.  
 # Prerequisites
 
