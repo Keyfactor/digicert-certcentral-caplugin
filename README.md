@@ -28,17 +28,17 @@ DigiCert CertCentral AnyCA REST Gateway Plugin is supported by Keyfactor for Key
 This AnyCA REST Gateway plug-in enables issuance, revocation, and synchronization of certificates from DigiCert's CertCentral offering.  
 # Prerequisites
 
-## Certificate Chain
+## Prerequisite: Certificate Chain
 
-In order to enroll for certificates the Keyfactor Command server must trust the trust chain. Once you create your Root and/or Subordinate CA, make sure to import the certificate chain into the AnyGateway and Command Server certificate store
+In order to request certificates from the Keyfactor AnyGateway, the Keyfactor Command server must trust the certificate chain of trust. To ensure trust is established, download your Root and/or Subordinate CA certificates from DigiCert and import them into the appropriate local certificate stores on the Keyfactor AnyGateway and Command servers. More information can be found in the [AnyCA Gateway REST Install Guide](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/Preparing.htm)
 
 ## Installation
 1. Download latest successful build from [GitHub Releases](../../releases/latest)
 
-2. Copy DigicertCAPlugin.dll and DigicertCAPlugin.deps.json to the Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions directory
+2. Extract the .zip file, and from it, copy DigicertCAPlugin.dll and DigicertCAPlugin.deps.json to the 'C:\Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions' directory
 
-3. Update the manifest.json file located in Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions\Connectors
-  * If the manifest.json file or the Connectors folder do not exist, create them.
+3. Within the 'C:\Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions\Connectors' folder, update the manifest.json file to contain the following:
+
 ```json
 {  
     "extensions": {  
@@ -51,6 +51,8 @@ In order to enroll for certificates the Keyfactor Command server must trust the 
     }  
 }
 ```
+
+NOTE: If the Connectors folder and/or the manifest.json file do not exist, they must be manually created
 
 4. Restart the AnyCA Gateway service
 
