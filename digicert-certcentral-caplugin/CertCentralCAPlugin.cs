@@ -356,6 +356,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					DefaultValue = false,
 					Type = "Boolean"
 				},
+
 				[CertCentralConstants.Config.SYNC_CA_FILTER] = new PropertyConfigInfo()
 				{
 					Comments = "If you list one or more CA IDs here (comma-separated), the sync process will only sync records from those CAs. If you want to sync all CA IDs, leave this field empty.",
@@ -642,6 +643,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			string syncCAstring = _config.SyncCAFilter ?? string.Empty;
 			_logger.LogTrace($"Sync CAs: {syncCAstring}");
 			List<string> caList = _config.SyncCAs;
+
 			caList.ForEach(c => c.ToUpper());
 
 
