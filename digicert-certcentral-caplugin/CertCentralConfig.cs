@@ -11,14 +11,30 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 		public CertCentralConfig()
 		{
-			SyncCAFilter = new List<string>();
+
 		}
 		public string APIKey { get; set; }
 		public string Region { get; set; } = "US";
 		public int? DivisionId { get; set; }
 		public bool? RevokeCertificateOnly { get; set; }
 		public bool Enabled { get; set; } = true;
-		public List<string> SyncCAFilter { get; set; }
+
+		public string SyncCAFilter { get; set; }
+		public List<string> SyncCAs
+		{
+			get
+			{
+				if (!string.IsNullOrEmpty(SyncCAFilter))
+				{
+					return SyncCAFilter.Split(',').ToList();
+				}
+				else
+				{
+					return new List<string>();
+				}	
+			}
+		}
+
 		public bool? FilterExpiredOrders { get; set; }
 		public int? SyncExpirationDays { get; set; }
 	}
