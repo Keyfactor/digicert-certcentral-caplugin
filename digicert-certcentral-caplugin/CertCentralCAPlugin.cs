@@ -58,6 +58,12 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		public async Task<EnrollmentResult> Enroll(string csr, string subject, Dictionary<string, string[]> san, EnrollmentProductInfo productInfo, RequestFormat requestFormat, EnrollmentType enrollmentType)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
+			_logger.LogDebug($"Enrolling for certificate with subject {subject}");
+			foreach (var sanlist in san)
+			{
+				string sans = string.Join(",", sanlist.Value);
+				_logger.LogDebug($"SANs type \"{sanlist.Key}\": {sans}");
+			}
 			OrderResponse orderResponse = new OrderResponse();
 			CertCentralCertType certType = CertCentralCertType.GetAllTypes(_config).FirstOrDefault(x => x.ProductCode.Equals(productInfo.ProductID));
 			OrderRequest orderRequest = new OrderRequest(certType);
@@ -86,6 +92,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			if (san.ContainsKey("Dns"))
 			{
 				dnsNames = new List<string>(san["Dns"]);
+			}
+			if (san.ContainsKey("dnsname"))
+			{
+				dnsNames = new List<string>(san["dnsname"]);
 			}
 
 			X509Name subjectParsed = null;
@@ -356,6 +366,28 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					DefaultValue = false,
 					Type = "Boolean"
 				},
+
+				[CertCentralConstants.Config.SYNC_CA_FILTER] = new PropertyConfigInfo()
+				{
+					Comments = "If you list one or more CA IDs here (comma-separated), the sync process will only sync records from those CAs. If you want to sync all CA IDs, leave this field empty.",
+					Hidden = false,
+					DefaultValue = "",
+					Type = "String"
+				},
+				[CertCentralConstants.Config.FILTER_EXPIRED] = new PropertyConfigInfo()
+				{
+					Comments = "If set to 'true', syncing will apply a filter to not return orders that are expired for longer than specified in SyncExpirationDays.",
+					Hidden = false,
+					DefaultValue = false,
+					Type = "Boolean"
+				},
+				[CertCentralConstants.Config.SYNC_EXPIRATION_DAYS] = new PropertyConfigInfo()
+				{
+					Comments = "If FilterExpiredOrders is set to true, this setting determines how many days in the past to still return expired orders. For example, a value of 30 means the sync will return any certs that expired within the past 30 days. A value of 0 means the sync will not return any certs that expired before the current day. This value is ignored if FilterExpiredOrders is false.",
+					Hidden = false,
+					DefaultValue = 30,
+					Type = "Number"
+				},
 				[CertCentralConstants.Config.ENABLED] = new PropertyConfigInfo()
 				{
 					Comments = "Flag to Enable or Disable gateway functionality. Disabling is primarily used to allow creation of the CA prior to configuration information being available.",
@@ -618,9 +650,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			List<string> skippedOrders = new List<string>();
 			int certCount = 0;
 
-			string syncCAstring = string.Join(",", _config.SyncCAFilter ?? new List<string>());
+			string syncCAstring = _config.SyncCAFilter ?? string.Empty;
 			_logger.LogTrace($"Sync CAs: {syncCAstring}");
-			List<string> caList = _config.SyncCAFilter ?? new List<string>();
+			List<string> caList = _config.SyncCAs;
+
 			caList.ForEach(c => c.ToUpper());
 
 

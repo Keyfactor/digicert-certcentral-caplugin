@@ -27,6 +27,9 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			public const string RENEWAL_WINDOW = "RenewalWindowDays";
 			public const string REVOKE_CERT = "RevokeCertificateOnly";
 			public const string ENABLED = "Enabled";
+			public const string SYNC_CA_FILTER = "SyncCAFilter";
+			public const string FILTER_EXPIRED = "FilterExpiredOrders";
+			public const string SYNC_EXPIRATION_DAYS = "SyncExpirationDays";
 		}
 
 		public class RequestAttributes
