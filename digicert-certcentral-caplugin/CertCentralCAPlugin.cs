@@ -93,6 +93,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			{
 				dnsNames = new List<string>(san["Dns"]);
 			}
+			if (san.ContainsKey("dnsname"))
+			{
+				dnsNames = new List<string>(san["dnsname"]);
+			}
 
 			X509Name subjectParsed = null;
 			string commonName = null, organization = null, orgUnit = null;
