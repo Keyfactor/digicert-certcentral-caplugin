@@ -18,7 +18,6 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		public int? DivisionId { get; set; }
 		public bool? RevokeCertificateOnly { get; set; }
 		public bool Enabled { get; set; } = true;
-
 		public string SyncCAFilter { get; set; }
 		public List<string> SyncCAs
 		{

@@ -58,12 +58,14 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		public async Task<EnrollmentResult> Enroll(string csr, string subject, Dictionary<string, string[]> san, EnrollmentProductInfo productInfo, RequestFormat requestFormat, EnrollmentType enrollmentType)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
+
 			_logger.LogDebug($"Enrolling for certificate with subject {subject}");
 			foreach (var sanlist in san)
 			{
 				string sans = string.Join(",", sanlist.Value);
 				_logger.LogDebug($"SANs type \"{sanlist.Key}\": {sans}");
 			}
+
 			OrderResponse orderResponse = new OrderResponse();
 			CertCentralCertType certType = CertCentralCertType.GetAllTypes(_config).FirstOrDefault(x => x.ProductCode.Equals(productInfo.ProductID));
 			OrderRequest orderRequest = new OrderRequest(certType);
@@ -93,6 +95,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			{
 				dnsNames = new List<string>(san["Dns"]);
 			}
+
 			if (san.ContainsKey("dnsname"))
 			{
 				dnsNames = new List<string>(san["dnsname"]);
