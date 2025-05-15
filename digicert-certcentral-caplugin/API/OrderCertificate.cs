@@ -84,6 +84,9 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 		[JsonProperty("dns_names")]
 		public List<string> DNSNames { get; set; }
 
+		[JsonProperty("emails")]
+		public List<String> Emails { get; set; }
+
 		[JsonProperty("csr")]
 		public string CSR { get; set; }
 
