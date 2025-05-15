@@ -60,12 +60,11 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 
-			_logger.LogDebug($"Enrolling for certificate with subject {subject}");
-			foreach (var sanlist in san)
-			{
-				string sans = string.Join(",", sanlist.Value);
-				_logger.LogDebug($"SANs type \"{sanlist.Key}\": {sans}");
-			}
+			string sans = string.Join(";", san.Select(s => string.Format("{0}:{1}", s.Key, string.Join(",", s.Value))));
+			string paramsList = string.Join(";", productInfo.ProductParameters.Select(x => string.Format("{0}={1}", x.Key, x.Value)));
+			_logger.LogTrace($"Attempting to enroll for certificate with:\nSubject: {subject}\nSANs: {sans}\nParams: {paramsList}\nCSR: {csr}");
+
+
 
 			OrderResponse orderResponse = new OrderResponse();
 			CertCentralCertType certType = CertCentralCertType.GetAllTypes(_config).FirstOrDefault(x => x.ProductCode.Equals(productInfo.ProductID));
