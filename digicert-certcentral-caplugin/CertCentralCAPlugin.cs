@@ -5,6 +5,7 @@ using Keyfactor.Extensions.CAPlugin.DigiCert.API;
 using Keyfactor.Extensions.CAPlugin.DigiCert.Client;
 using Keyfactor.Extensions.CAPlugin.DigiCert.Models;
 using Keyfactor.Logging;
+using Keyfactor.PKI;
 using Keyfactor.PKI.Enums;
 using Keyfactor.PKI.Enums.EJBCA;
 
@@ -105,12 +106,15 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			string commonName = null, organization = null, orgUnit = null;
 			try
 			{
-				subjectParsed = new X509Name(subject);
+				subjectParsed = new X509Name(true, PKIConstants.X509.OIDLookup, subject);
 				commonName = subjectParsed.GetValueList(X509Name.CN).Cast<string>().LastOrDefault();
 				organization = subjectParsed.GetValueList(X509Name.O).Cast<string>().LastOrDefault();
 				orgUnit = subjectParsed.GetValueList(X509Name.OU).Cast<string>().LastOrDefault();
 			}
-			catch (Exception) { }
+			catch (Exception exc)
+			{
+				_logger.LogInformation($"Error while parsing subject. This might be expected. Error message: {exc.Message}");
+			}
 
 			if (commonName == null)
 			{
