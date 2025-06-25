@@ -387,7 +387,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					Comments = "Division ID to use for retrieving product details (only if account is configured with per-divison product settings)",
 					Hidden = false,
 					DefaultValue = "",
-					Type = "Number"
+					Type = "String"
 				},
 				[CertCentralConstants.Config.REGION] = new PropertyConfigInfo()
 				{
