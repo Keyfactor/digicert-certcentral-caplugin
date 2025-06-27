@@ -732,7 +732,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				List<Order> allOrders = new List<Order>();
 				foreach (string div in divFilters)
 				{
-					ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, divFilter);
+					ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, div);
 					if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 					{
 						Error error = ordersResponse.Errors[0];
