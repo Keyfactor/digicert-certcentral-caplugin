@@ -579,6 +579,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					Hidden = false,
 					DefaultValue = "ssl",
 					Type = "String"
+				},
+				[CertCentralConstants.Config.ENROLL_DIVISION_ID] = new PropertyConfigInfo()
+				{
+					Comments = "OPTIONAL: The division (container) ID to use for enrollments against this template.",
+					Hidden = false,
+					DefaultValue = "",
+					Type = "String"
 				}
 			};
 		}
