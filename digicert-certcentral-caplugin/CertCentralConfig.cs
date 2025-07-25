@@ -36,5 +36,6 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 		public bool? FilterExpiredOrders { get; set; }
 		public int? SyncExpirationDays { get; set; }
+		public string SyncDivisionFilter { get; set; }
 	}
 }
