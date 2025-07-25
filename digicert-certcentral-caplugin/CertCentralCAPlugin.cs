@@ -207,6 +207,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				}
 			}
 
+			// Get Division ID (if present)
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.ENROLL_DIVISION_ID) && !string.IsNullOrEmpty(productInfo.ProductParameters[CertCentralConstants.Config.ENROLL_DIVISION_ID]))
+			{
+				orderRequest.Container = new CertificateOrderContainer();
+				orderRequest.Container.Id = int.Parse(productInfo.ProductParameters[CertCentralConstants.Config.ENROLL_DIVISION_ID]);
+			}
+
 			// Get CA Cert ID (if present)
 			string caCertId = null;
 			if (productInfo.ProductParameters.ContainsKey("CACertId") && !string.IsNullOrEmpty(productInfo.ProductParameters["CACertId"]))
