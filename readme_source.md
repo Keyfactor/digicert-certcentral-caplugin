@@ -59,3 +59,4 @@ LifetimeDays | No | The number of days of validity to use when requesting certs.
 CACertId | No | The ID of the issuing CA to be used by DigiCert. If not specified, the default for your account will be used.
 Organization-Name | No | If specified, this value will override any organization name provided in the subject of the cert request on enrollment. Useful for requests (such as ACME) that contain no subject.
 RenewalWindowDays | No | The number of days from expiration that the gateway should do a reissue rather than a renewal. Default if not provided is 90, meaning any renewal request for certs that expire in more than 90 days will be treated as a reissue request.
+CertType | No | Allows you to specify whether the certs of this template are ssl or client certs. Valid values: ssl, client. If not provided, defaults to ssl.
