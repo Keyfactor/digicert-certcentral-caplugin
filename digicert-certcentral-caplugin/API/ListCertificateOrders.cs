@@ -29,6 +29,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 
 		public bool ignoreExpired { get; set; }
 		public int expiredWindow { get; set; } = 0;
+		public string divID { get; set; } = string.Empty;
 
 		public new string BuildParameters()
 		{
@@ -37,6 +38,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 			sbParamters.Append("limit=").Append(this.limit.ToString());
 			sbParamters.Append("&offset=").Append(HttpUtility.UrlEncode(this.offset.ToString()));
 
+			if (!string.IsNullOrEmpty(divID))
+			{
+				sbParamters.Append("&filters[container_id]=").Append(this.divID);
+			}
 			if (ignoreExpired)
 			{
 				DateTime cutoffDate = DateTime.Today.AddDays(-1 - expiredWindow);
