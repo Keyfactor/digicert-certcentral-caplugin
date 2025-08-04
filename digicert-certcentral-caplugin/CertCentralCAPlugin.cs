@@ -1491,7 +1491,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					// instead just retrieves multiple copies of the primary certificate on that order. Since the gateway database must have unique certificates
 					// (serial number column is unique), we work around this by only syncing the primary cert in these cases. Other orders that correctly retrieve the
 					// reissued/duplicate certificates will pass this check.
-					if (!serNums.Contains(req))
+					if (!serNums.Contains(cert.serialNum))
 					{
 						reqIds.Add(req);
 						retCerts.Add(cert);
