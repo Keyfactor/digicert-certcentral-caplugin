@@ -11,6 +11,7 @@ using Keyfactor.PKI.Enums.EJBCA;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualBasic;
+using Microsoft.Win32.SafeHandles;
 
 using Newtonsoft.Json;
 
@@ -59,22 +60,22 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 
-			_logger.LogDebug($"Enrolling for certificate with subject {subject}");
-			foreach (var sanlist in san)
-			{
-				string sans = string.Join(",", sanlist.Value);
-				_logger.LogDebug($"SANs type \"{sanlist.Key}\": {sans}");
-			}
+			string sans = string.Join(";", san.Select(s => string.Format("{0}:{1}", s.Key, string.Join(",", s.Value))));
+			string paramsList = string.Join(";", productInfo.ProductParameters.Select(x => string.Format("{0}={1}", x.Key, x.Value)));
+			_logger.LogTrace($"Attempting to enroll for certificate with:\nSubject: {subject}\nSANs: {sans}\nParams: {paramsList}\nCSR: {csr}");
+
+
 
 			OrderResponse orderResponse = new OrderResponse();
 			CertCentralCertType certType = CertCentralCertType.GetAllTypes(_config).FirstOrDefault(x => x.ProductCode.Equals(productInfo.ProductID));
 			OrderRequest orderRequest = new OrderRequest(certType);
 
-			//var days = (productInfo.ProductParameters.ContainsKey("LifetimeDays") && !st) ? int.Parse(productInfo.ProductParameters["LifetimeDays"]) : 365;
+			string typeOfCert = (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.CERT_TYPE)) ? productInfo.ProductParameters[CertCentralConstants.Config.CERT_TYPE].ToLower() : "ssl";
+
 			var days = 365;
-			if (productInfo.ProductParameters.ContainsKey("LifetimeDays") && !string.IsNullOrEmpty(productInfo.ProductParameters["LifetimeDays"]))
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.LIFETIME) && !string.IsNullOrEmpty(productInfo.ProductParameters[CertCentralConstants.Config.LIFETIME]))
 			{
-				days = int.Parse(productInfo.ProductParameters["LifetimeDays"]);
+				days = int.Parse(productInfo.ProductParameters[CertCentralConstants.Config.LIFETIME]);
 			}
 			int validityYears = 0;
 			DateTime? customExpirationDate = null;
@@ -90,15 +91,30 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					break;
 			}
 
+			// Convert to case-insensitive dictionary
+			Dictionary<string, string[]> sandict = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+			foreach (var s in san)
+			{
+				sandict.Add(s.Key, s.Value);
+			}
+
 			List<string> dnsNames = new List<string>();
-			if (san.ContainsKey("Dns"))
+			List<string> emails = new List<string>();
+			if (sandict.ContainsKey("Dns"))
 			{
 				dnsNames = new List<string>(san["Dns"]);
 			}
-
-			if (san.ContainsKey("dnsname"))
+			if (sandict.ContainsKey("dnsname"))
 			{
 				dnsNames = new List<string>(san["dnsname"]);
+			}
+			if (sandict.ContainsKey("Email"))
+			{
+				emails = new List<string>(san["Email"]);
+			}
+			if (sandict.ContainsKey("Rfc822Name"))
+			{
+				emails = new List<string>(san["Rfc822Name"]);
 			}
 
 			X509Name subjectParsed = null;
@@ -114,13 +130,24 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			if (commonName == null)
 			{
-				if (dnsNames.Count > 0)
+				if (typeOfCert.Equals("ssl") && dnsNames.Count > 0)
 				{
 					commonName = dnsNames[0];
 				}
+				else if (typeOfCert.Equals("client") && emails.Count > 0)
+				{
+					commonName = emails[0];
+				}
 				else
 				{
-					throw new Exception("No Common Name or DNS SAN provided, unable to enroll");
+					throw new Exception("No Common Name or SAN provided, unable to enroll");
+				}
+			}
+			else
+			{
+				if (typeOfCert.Equals("client") && emails.Count == 0)
+				{
+					emails.Add(commonName);
 				}
 			}
 
@@ -180,6 +207,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				}
 			}
 
+			// Get Division ID (if present)
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.ENROLL_DIVISION_ID) && !string.IsNullOrEmpty(productInfo.ProductParameters[CertCentralConstants.Config.ENROLL_DIVISION_ID]))
+			{
+				orderRequest.Container = new CertificateOrderContainer();
+				orderRequest.Container.Id = int.Parse(productInfo.ProductParameters[CertCentralConstants.Config.ENROLL_DIVISION_ID]);
+			}
+
 			// Get CA Cert ID (if present)
 			string caCertId = null;
 			if (productInfo.ProductParameters.ContainsKey("CACertId") && !string.IsNullOrEmpty(productInfo.ProductParameters["CACertId"]))
@@ -190,7 +224,14 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			orderRequest.Certificate.CommonName = commonName;
 			orderRequest.Certificate.CSR = csr;
 			orderRequest.Certificate.SignatureHash = signatureHash;
-			orderRequest.Certificate.DNSNames = dnsNames;
+			if (typeOfCert.Equals("ssl"))
+			{
+				orderRequest.Certificate.DNSNames = dnsNames;
+			}
+			else if (typeOfCert.Equals("client"))
+			{
+				orderRequest.Certificate.Emails = emails;
+			}
 			orderRequest.Certificate.CACertID = caCertId;
 			orderRequest.SetOrganization(organizationId);
 			if (!string.IsNullOrEmpty(orgUnit))
@@ -353,7 +394,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					Comments = "Division ID to use for retrieving product details (only if account is configured with per-divison product settings)",
 					Hidden = false,
 					DefaultValue = "",
-					Type = "Number"
+					Type = "String"
 				},
 				[CertCentralConstants.Config.REGION] = new PropertyConfigInfo()
 				{
@@ -373,6 +414,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				[CertCentralConstants.Config.SYNC_CA_FILTER] = new PropertyConfigInfo()
 				{
 					Comments = "If you list one or more CA IDs here (comma-separated), the sync process will only sync records from those CAs. If you want to sync all CA IDs, leave this field empty.",
+					Hidden = false,
+					DefaultValue = "",
+					Type = "String"
+				},
+				[CertCentralConstants.Config.SYNC_DIV_FILTER] = new PropertyConfigInfo()
+				{
+					Comments = "If you list one or more Divison IDs (also known as Container IDs) here (comma-separated), the sync process will filter records to only return orders from those divisions. If you want to sync all divisions, leave this field empty. Note that this has no relationship to the value of the DivisionId config field.",
 					Hidden = false,
 					DefaultValue = "",
 					Type = "String"
@@ -524,6 +572,20 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					Hidden = false,
 					DefaultValue = 90,
 					Type = "Number"
+				},
+				[CertCentralConstants.Config.CERT_TYPE] = new PropertyConfigInfo()
+				{
+					Comments = "OPTIONAL: The type of cert to enroll for. Valid values are 'ssl' and 'client'. The value provided here must be consistant with the ProductID. If not provided, default is 'ssl'.",
+					Hidden = false,
+					DefaultValue = "ssl",
+					Type = "String"
+				},
+				[CertCentralConstants.Config.ENROLL_DIVISION_ID] = new PropertyConfigInfo()
+				{
+					Comments = "OPTIONAL: The division (container) ID to use for enrollments against this template.",
+					Hidden = false,
+					DefaultValue = "",
+					Type = "String"
 				}
 			};
 		}
@@ -659,10 +721,16 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			caList.ForEach(c => c.ToUpper());
 
+			List<string> divFilters = null;
+			if (!string.IsNullOrEmpty(_config.SyncDivisionFilter))
+			{
+				divFilters = new List<string>();
+				divFilters.AddRange(_config.SyncDivisionFilter.Split(','));
+			}
 
 			if (fullSync)
 			{
-				bool ignoreExpired = false; int expiredWindow = 0;
+				bool ignoreExpired = false; int expiredWindow = 0; 
 				if (_config.FilterExpiredOrders.HasValue && _config.FilterExpiredOrders.Value)
 				{
 					ignoreExpired = true;
@@ -671,50 +739,73 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 						expiredWindow = _config.SyncExpirationDays.Value;
 					}
 				}
+
 				long time = DateTime.Now.Ticks;
 				long starttime = time;
 				_logger.LogDebug($"SYNC: Starting sync at time {time}");
-				ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow);
-				if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
+				List<Order> allOrders = new List<Order>();
+				if (divFilters != null)
 				{
-					Error error = ordersResponse.Errors[0];
-					_logger.LogError("Error in listing all certificate orders");
-					throw new Exception($"DigiCert CertCentral web service returned {error.code} - {error.message} when retrieving all rows");
+					foreach (string div in divFilters)
+					{
+						ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, div);
+						if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
+						{
+							Error error = ordersResponse.Errors[0];
+							_logger.LogError("Error in listing all certificate orders");
+							throw new Exception($"DigiCert CertCentral web service returned {error.code} - {error.message} when retrieving all rows");
+						}
+						else
+						{
+							allOrders.AddRange(ordersResponse.orders);
+						}
+					}
 				}
 				else
 				{
-					_logger.LogDebug($"SYNC: Found {ordersResponse.orders.Count} records");
-					foreach (var orderDetails in ordersResponse.orders)
+					ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, null);
+					if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 					{
-						List<AnyCAPluginCertificate> orderCerts = new List<AnyCAPluginCertificate>();
-						try
+						Error error = ordersResponse.Errors[0];
+						_logger.LogError("Error in listing all certificate orders");
+						throw new Exception($"DigiCert CertCentral web service returned {error.code} - {error.message} when retrieving all rows");
+					}
+					else
+					{
+						allOrders.AddRange(ordersResponse.orders);
+					}
+				}
+				_logger.LogDebug($"SYNC: Found {allOrders.Count} records");
+				foreach (var orderDetails in allOrders)
+				{
+					List<AnyCAPluginCertificate> orderCerts = new List<AnyCAPluginCertificate>();
+					try
+					{
+						cancelToken.ThrowIfCancellationRequested();
+						string caReqId = orderDetails.id + "-" + orderDetails.certificate.id;
+						_logger.LogDebug($"SYNC: Retrieving certs for order id {orderDetails.id}");
+						orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters);
+						if (orderCerts == null || orderCerts.Count == 0)
 						{
-							cancelToken.ThrowIfCancellationRequested();
-							string caReqId = orderDetails.id + "-" + orderDetails.certificate.id;
-							_logger.LogDebug($"SYNC: Retrieving certs for order id {orderDetails.id}");
-							orderCerts = GetAllConnectorCertsForOrder(caReqId, caList);
-							if (orderCerts == null || orderCerts.Count == 0)
-							{
-								continue;
-							}
-							_logger.LogDebug($"SYNC: Retrieved {orderCerts.Count} certs at time {DateTime.Now.Ticks}");
-						}
-						catch
-						{
-							skippedOrders.Add(orderDetails.id.ToString());
-							_logger.LogWarning($"An error occurred attempting to sync order '{orderDetails.id}'. This order will be skipped.");
 							continue;
 						}
-
-						foreach (var cert in orderCerts)
-						{
-							certCount++;
-							blockingBuffer.Add(cert);
-						}
-
+						_logger.LogDebug($"SYNC: Retrieved {orderCerts.Count} certs at time {DateTime.Now.Ticks}");
 					}
-					_logger.LogDebug($"SYNC: Complete after {DateTime.Now.Ticks - starttime} ticks");
+					catch
+					{
+						skippedOrders.Add(orderDetails.id.ToString());
+						_logger.LogWarning($"An error occurred attempting to sync order '{orderDetails.id}'. This order will be skipped.");
+						continue;
+					}
+
+					foreach (var cert in orderCerts)
+					{
+						certCount++;
+						blockingBuffer.Add(cert);
+					}
+
 				}
+				_logger.LogDebug($"SYNC: Complete after {DateTime.Now.Ticks - starttime} ticks");
 			}
 			else
 			{
@@ -735,7 +826,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 						{
 							cancelToken.ThrowIfCancellationRequested();
 							string caReqId = order.order_id + "-" + order.certificate_id;
-							orderCerts = GetAllConnectorCertsForOrder(caReqId, caList);
+							orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters);
 							if (orderCerts == null || orderCerts.Count > 0)
 							{
 								continue;
@@ -863,6 +954,15 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				}
 			}
 			CertCentralClient client = new CertCentralClient(apiKey, region);
+
+			if (connectionInfo.ContainsKey(CertCentralConstants.Config.CERT_TYPE))
+			{
+				var typeOfCert = (string)connectionInfo[CertCentralConstants.Config.CERT_TYPE];
+				if (!(typeOfCert.Equals("ssl") || typeOfCert.Equals("client")))
+				{
+					throw new Exception("Invalid Cert Type specified. Valid options are 'ssl' or 'client'");
+				}
+			}
 
 			// Get the available types and check that it's one of them.
 			// We're doing this because to get the list of valid product IDs in a comment, the user must have at least one correct product/template mapping.
@@ -1280,7 +1380,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		/// </summary>
 		/// <param name="caRequestID"></param>
 		/// <returns></returns>
-		private List<AnyCAPluginCertificate> GetAllConnectorCertsForOrder(string caRequestID, List<string> caFilterIds)
+		private List<AnyCAPluginCertificate> GetAllConnectorCertsForOrder(string caRequestID, List<string> caFilterIds, List<string> divIds)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 			// Split ca request id into order and cert id
@@ -1298,6 +1398,11 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				_logger.LogTrace($"Found order ID {orderId} that does not match SyncCAFilter. CA ID: {orderResponse.certificate.ca_cert.Id} Skipping...");
 				return null;
 			}
+			if (divIds != null && divIds.Count > 0 && !divIds.Contains(orderResponse.container.Id.ToString()))
+			{
+				_logger.LogTrace($"Found order ID {orderId} that does not match Division filter. Division ID: {orderResponse.container.Id.ToString()} Skipping...");
+				return null;
+			}
 
 			var orderCerts = GetAllCertsForOrder(orderId);
 
@@ -1313,7 +1418,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					if (status == (int)EndEntityStatus.GENERATED || status == (int)EndEntityStatus.REVOKED)
 					{
 						// We have a status where there may be a cert to download, try to download it
-						CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest(certId));
+						CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest($"{cert.certificate_id}"));
 						if (certificateChainResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
 						{
 							certificate = certificateChainResponse.Intermediates[0].PEM;
@@ -1403,7 +1508,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					// instead just retrieves multiple copies of the primary certificate on that order. Since the gateway database must have unique certificates
 					// (serial number column is unique), we work around this by only syncing the primary cert in these cases. Other orders that correctly retrieve the
 					// reissued/duplicate certificates will pass this check.
-					if (!serNums.Contains(req))
+					if (!serNums.Contains(cert.serialNum))
 					{
 						reqIds.Add(req);
 						retCerts.Add(cert);
