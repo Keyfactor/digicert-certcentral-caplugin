@@ -721,7 +721,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			caList.ForEach(c => c.ToUpper());
 
-			List<string> divFilters = new List<string>() { "" };
+			List<string> divFilters = null;
 			if (!string.IsNullOrEmpty(_config.SyncDivisionFilter))
 			{
 				divFilters = new List<string>();
@@ -744,9 +744,26 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				long starttime = time;
 				_logger.LogDebug($"SYNC: Starting sync at time {time}");
 				List<Order> allOrders = new List<Order>();
-				foreach (string div in divFilters)
+				if (divFilters != null)
 				{
-					ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, div);
+					foreach (string div in divFilters)
+					{
+						ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, div);
+						if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
+						{
+							Error error = ordersResponse.Errors[0];
+							_logger.LogError("Error in listing all certificate orders");
+							throw new Exception($"DigiCert CertCentral web service returned {error.code} - {error.message} when retrieving all rows");
+						}
+						else
+						{
+							allOrders.AddRange(ordersResponse.orders);
+						}
+					}
+				}
+				else
+				{
+					ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, null);
 					if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 					{
 						Error error = ordersResponse.Errors[0];
@@ -1401,7 +1418,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					if (status == (int)EndEntityStatus.GENERATED || status == (int)EndEntityStatus.REVOKED)
 					{
 						// We have a status where there may be a cert to download, try to download it
-						CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest(certId));
+						CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest($"{cert.certificate_id}"));
 						if (certificateChainResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
 						{
 							certificate = certificateChainResponse.Intermediates[0].PEM;
