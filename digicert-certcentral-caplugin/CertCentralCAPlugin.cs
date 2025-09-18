@@ -1206,7 +1206,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			if (orderResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 			{
-				_logger.LogError($"Error from CertCentral client: {orderResponse.Errors.First().message}");
+				_logger.LogError($"Error from CertCentral client: {orderResponse.Errors.First().code}: {orderResponse.Errors.First().message}");
 
 				status = (int)EndEntityStatus.FAILED;
 				statusMessage = orderResponse.Errors[0].message;
