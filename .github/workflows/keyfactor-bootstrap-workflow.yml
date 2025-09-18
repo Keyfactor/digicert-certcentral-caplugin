@@ -14,3 +14,5 @@ jobs:
     uses: keyfactor/actions/.github/workflows/starter.yml@v4
     secrets:
       token: ${{ secrets.SAST_TOKEN}}
+      gpg_key: ${{ secrets.KF_GPG_PRIVATE_KEY }}
+      gpg_pass: ${{ secrets.KF_GPG_PASSPHRASE }}
