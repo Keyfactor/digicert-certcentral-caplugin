@@ -19,6 +19,7 @@ using Org.BouncyCastle.Asn1.X509;
 
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 
 using static Keyfactor.PKI.PKIConstants.Microsoft;
 
@@ -64,7 +65,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			string paramsList = string.Join(";", productInfo.ProductParameters.Select(x => string.Format("{0}={1}", x.Key, x.Value)));
 			_logger.LogTrace($"Attempting to enroll for certificate with:\nSubject: {subject}\nSANs: {sans}\nParams: {paramsList}\nCSR: {csr}");
 
-
+			if (Constants.ProductTypes.SMIME_CERT.Contains(productInfo.ProductID, StringComparer.OrdinalIgnoreCase))
+			{
+				return EnrollForSmimeCert(csr, subject, san, productInfo, enrollmentType);
+			}
 
 			OrderResponse orderResponse = new OrderResponse();
 			CertCentralCertType certType = CertCentralCertType.GetAllTypes(_config).FirstOrDefault(x => x.ProductCode.Equals(productInfo.ProductID));
@@ -575,7 +579,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				},
 				[CertCentralConstants.Config.CERT_TYPE] = new PropertyConfigInfo()
 				{
-					Comments = "OPTIONAL: The type of cert to enroll for. Valid values are 'ssl' and 'client'. The value provided here must be consistant with the ProductID. If not provided, default is 'ssl'.",
+					Comments = "OPTIONAL: The type of cert to enroll for. Valid values are 'ssl' and 'client'. The value provided here must be consistant with the ProductID. If not provided, default is 'ssl'. Ignored for secure_email_* product types.",
 					Hidden = false,
 					DefaultValue = "ssl",
 					Type = "String"
@@ -583,6 +587,48 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				[CertCentralConstants.Config.ENROLL_DIVISION_ID] = new PropertyConfigInfo()
 				{
 					Comments = "OPTIONAL: The division (container) ID to use for enrollments against this template.",
+					Hidden = false,
+					DefaultValue = "",
+					Type = "String"
+				},
+				[CertCentralConstants.Config.COMMON_NAME_INDICATOR] = new PropertyConfigInfo()
+				{
+					Comments = "Required for secure_email_sponsor and secure_email_organization products, ignored otherwise. Defines the source of the common name. Valid values are: email_address, given_name_surname, pseudonym, organization_name",
+					Hidden = false,
+					DefaultValue = "",
+					Type = "String"
+				},
+				[CertCentralConstants.Config.PROFILE_TYPE] = new PropertyConfigInfo()
+				{
+					Comments = "Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Default value is strict.",
+					Hidden = false,
+					DefaultValue = "strict",
+					Type = "String"
+				},
+				[CertCentralConstants.Config.FIRST_NAME] = new PropertyConfigInfo()
+				{
+					Comments = "Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise.",
+					Hidden = false,
+					DefaultValue = "",
+					Type = "String"
+				},
+				[CertCentralConstants.Config.LAST_NAME] = new PropertyConfigInfo()
+				{
+					Comments = "Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise.",
+					Hidden = false,
+					DefaultValue = "",
+					Type = "String"
+				},
+				[CertCentralConstants.Config.PSEUDONYM]	= new PropertyConfigInfo()
+				{
+					Comments = "Required for secure_email_* types if CommonNameIndicator is pseudonym, ignored otherwise.",
+					Hidden = false,
+					DefaultValue = "",
+					Type = "String"
+				},
+				[CertCentralConstants.Config.SMIME_USAGE] = new PropertyConfigInfo()
+				{
+					Comments = "Required for secure_email_* types, ignored otherwise. The primary usage of the certificate. Valid values are: signing, key_management, dual_use",
 					Hidden = false,
 					DefaultValue = "",
 					Type = "String"
@@ -955,15 +1001,6 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			}
 			CertCentralClient client = new CertCentralClient(apiKey, region);
 
-			if (connectionInfo.ContainsKey(CertCentralConstants.Config.CERT_TYPE))
-			{
-				var typeOfCert = (string)connectionInfo[CertCentralConstants.Config.CERT_TYPE];
-				if (!(typeOfCert.Equals("ssl") || typeOfCert.Equals("client")))
-				{
-					throw new Exception("Invalid Cert Type specified. Valid options are 'ssl' or 'client'");
-				}
-			}
-
 			// Get the available types and check that it's one of them.
 			// We're doing this because to get the list of valid product IDs in a comment, the user must have at least one correct product/template mapping.
 			// We therefore need to have some way of telling them what the valid product IDs are to begin with.
@@ -1001,6 +1038,18 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			{
 				throw new AnyCAValidationException($"Validation of '{productId}' failed for the following reasons: {string.Join(" ", details.Errors.Select(x => x.message))}.");
 			}
+
+			if (!Constants.ProductTypes.SMIME_CERT.Contains(productInfo.ProductID, StringComparer.OrdinalIgnoreCase))
+			{
+				if (connectionInfo.ContainsKey(CertCentralConstants.Config.CERT_TYPE))
+				{
+					var typeOfCert = (string)connectionInfo[CertCentralConstants.Config.CERT_TYPE];
+					if (!(typeOfCert.Equals("ssl") || typeOfCert.Equals("client")))
+					{
+						throw new AnyCAValidationException("Invalid Cert Type specified. Valid options are 'ssl' or 'client'");
+					}
+				}
+			}
 			_logger.MethodExit(LogLevel.Trace);
 		}
 
@@ -1016,6 +1065,12 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		{
 			_logger.LogTrace("Attempting to enroll for a certificate.");
 			return await ExtractEnrollmentResult(client, client.OrderCertificate(request), commonName);
+		}
+
+		private async Task<EnrollmentResult> NewSmimeCertificate(CertCentralClient client, OrderSmimeRequest request)
+		{
+			_logger.LogTrace("Attempting to enroll for a certificate.");
+			return await ExtractSmimeEnrollmentResult(client, client.OrderSmimeCertificate(request));
 		}
 
 
@@ -1130,6 +1185,63 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					{
 						_logger.LogWarning("The request disposition is for this enrollment could not be determined.");
 						throw new Exception($"The request disposition is for this enrollment could not be determined.");
+					}
+				}
+			}
+			return new EnrollmentResult
+			{
+				CARequestID = caRequestID,
+				Certificate = certificate,
+				Status = status,
+				StatusMessage = statusMessage
+			};
+		}
+
+		private async Task<EnrollmentResult> ExtractSmimeEnrollmentResult(CertCentralClient client, OrderResponse orderResponse)
+		{
+			int status = 0;
+			string statusMessage = null;
+			string certificate = null;
+			string caRequestID = null;
+
+			if (orderResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
+			{
+				_logger.LogError($"Error from CertCentral client: {orderResponse.Errors.First().message}");
+
+				status = (int)EndEntityStatus.FAILED;
+				statusMessage = orderResponse.Errors[0].message;
+			}
+			else if (orderResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
+			{
+				uint orderID = (uint)orderResponse.OrderId;
+				ViewCertificateOrderResponse certificateOrderResponse = client.ViewCertificateOrder(new ViewCertificateOrderRequest(orderID));
+				if (certificateOrderResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
+				{
+					string errorMessage = $"Order {orderID} was not found for rejection in CertCentral database";
+					_logger.LogInformation(errorMessage);
+					throw new Exception(errorMessage);
+				}
+
+				status = GetCertificateStatusFromCA(certificateOrderResponse.status, (int)orderID);
+
+				ViewCertificateOrderResponse order = client.ViewCertificateOrder(new ViewCertificateOrderRequest((uint)orderResponse.OrderId));
+
+				// We don't worry about failures here, since the sync will update the cert if we can't get it right now for some reason.
+				if (order.Status != CertCentralBaseResponse.StatusType.ERROR)
+				{
+					caRequestID = $"{order.id}-{order.certificate.id}";
+					try
+					{
+						AnyCAPluginCertificate connCert = await GetSingleRecord($"{order.id}-{order.certificate.id}");
+						certificate = connCert.Certificate;
+						status = connCert.Status;
+						statusMessage = $"Post-submission approval of order {order.id} returned success";
+					}
+					catch (Exception getRecordEx)
+					{
+						_logger.LogWarning($"Unable to retrieve certificate {order.certificate.id} for order {order.id}: {getRecordEx.Message}");
+						status = (int)EndEntityStatus.INPROCESS;
+						statusMessage = $"Post-submission approval of order {order.id} was successful, but pickup failed";
 					}
 				}
 			}
@@ -1368,6 +1480,27 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			return await ExtractEnrollmentResult(client, client.OrderCertificate(request), commonName);
 		}
 
+		private async Task<EnrollmentResult> RenewSmime(CertCentralClient client, OrderSmimeRequest request, EnrollmentProductInfo enrollmentProductInfo, string caRequestId)
+		{
+			CheckProductExistence(enrollmentProductInfo.ProductID);
+
+			int orderId = 0;
+			_logger.LogTrace("Parsing the order ID from the database certificate.");
+			try
+			{
+				orderId = int.Parse(caRequestId.Split('-').First());
+			}
+			catch (Exception e)
+			{
+				throw new Exception($"There was an error parsing the order ID from the certificate: {e.Message}", e);
+			}
+
+			request.RenewalOfOrderId = orderId;
+
+			_logger.LogTrace($"Attempting to renew certificate with order id {orderId}.");
+			return await ExtractSmimeEnrollmentResult(client, client.OrderSmimeCertificate(request));
+		}
+
 		string FormatSyncDate(DateTime? syncTime)
 		{
 			string date = syncTime.Value.Year + "-" + syncTime.Value.Month + "-" + syncTime.Value.Day;
@@ -1521,6 +1654,297 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				}
 			}
 			return retCerts;
+		}
+
+		private EnrollmentResult EnrollForSmimeCert(string csr, string subject, Dictionary<string, string[]> san, EnrollmentProductInfo productInfo, EnrollmentType enrollmentType)
+		{
+			_logger.MethodEntry(LogLevel.Debug);
+
+			//Validate fields
+			string cnIndic = "";
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.COMMON_NAME_INDICATOR))
+			{
+				cnIndic = productInfo.ProductParameters[CertCentralConstants.Config.COMMON_NAME_INDICATOR].ToString();
+			}
+			List<string> validIndicators = new List<string>() { "email_address", "given_name_surname", "pseudonym", "organization_name" };
+			// Valid value only required for secure_email_sponsor and secure_email_organization
+			if (!validIndicators.Contains(cnIndic, StringComparer.OrdinalIgnoreCase))
+			{
+				if (!productInfo.ProductID.Equals("secure_email_mailbox"))
+				{
+					throw new Exception($"Invalid CommonNameIndicator provided. Valid values are: {string.Join(',', validIndicators)}");
+				}
+			}
+
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.PROFILE_TYPE))
+			{
+				string profile = productInfo.ProductParameters[CertCentralConstants.Config.PROFILE_TYPE].ToString();
+
+				// Only validate if value provided
+				if (!string.IsNullOrEmpty(profile))
+				{
+					List<string> validProfiles = new List<string>() { "strict", "multipurpose" };
+					if (!validProfiles.Contains(profile, StringComparer.OrdinalIgnoreCase))
+					{
+						throw new Exception($"Invalid profile type provided. Valid values are: strict, multipurpose");
+					}
+				}
+			}
+
+			if (cnIndic.Equals("given_name_surname", StringComparison.OrdinalIgnoreCase))
+			{
+				string first = "", last = "";
+				if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.FIRST_NAME))
+				{
+					first = productInfo.ProductParameters[CertCentralConstants.Config.FIRST_NAME].ToString();
+				}
+				if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.LAST_NAME))
+				{
+					last = productInfo.ProductParameters[CertCentralConstants.Config.LAST_NAME].ToString();
+				}
+
+				if (string.IsNullOrEmpty(first) || string.IsNullOrEmpty(last))
+				{
+					throw new Exception($"Both First and Last Name are required fields when CommonNameIndicator is given_name_surname");
+				}
+			}
+			else if (cnIndic.Equals("pseudonym", StringComparison.OrdinalIgnoreCase))
+			{
+				string pseu = "";
+				if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.PSEUDONYM))
+				{
+					pseu = productInfo.ProductParameters[CertCentralConstants.Config.PSEUDONYM].ToString();
+				}
+
+				if (string.IsNullOrEmpty(pseu))
+				{
+					throw new Exception($"Pseudonym is required when CommonNameIndicator is pseudonym");
+				}
+			}
+
+			string usage = "";
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.SMIME_USAGE))
+			{
+				usage = productInfo.ProductParameters[CertCentralConstants.Config.SMIME_USAGE].ToString();
+			}
+			if (string.IsNullOrEmpty(usage))
+			{
+				throw new AnyCAValidationException($"UsageDesignation is required.");
+			}
+			else
+			{
+				List<string> validUsage = new List<string>() { "signing", "key_management", "dual_use" };
+				if (!validUsage.Contains(usage, StringComparer.OrdinalIgnoreCase))
+				{
+					throw new Exception($"Invalid UsageDesignation. Valid values are: {string.Join(',', validUsage)}");
+				}
+			}
+
+			CertCentralCertType certType = CertCentralCertType.GetAllTypes(_config).FirstOrDefault(x => x.ProductCode.Equals(productInfo.ProductID));
+			OrderSmimeRequest orderRequest = new OrderSmimeRequest(certType);
+
+			var days = 365;
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.LIFETIME) && !string.IsNullOrEmpty(productInfo.ProductParameters[CertCentralConstants.Config.LIFETIME]))
+			{
+				days = int.Parse(productInfo.ProductParameters[CertCentralConstants.Config.LIFETIME]);
+			}
+			int validityYears = 0;
+			DateTime? customExpirationDate = null;
+			switch (days)
+			{
+				case 365:
+				case 730:
+				case 1095:
+					validityYears = days / 365;
+					break;
+				default:
+					customExpirationDate = DateTime.Now.AddDays(days);
+					break;
+			}
+
+			X509Name subjectParsed = null;
+			string commonName = null, organization = null;
+			try
+			{
+				subjectParsed = new X509Name(subject);
+				commonName = subjectParsed.GetValueList(X509Name.CN).Cast<string>().LastOrDefault();
+				organization = subjectParsed.GetValueList(X509Name.O).Cast<string>().LastOrDefault();
+			}
+			catch (Exception) { }
+
+			var cnIndicator = productInfo.ProductParameters[Constants.Config.COMMON_NAME_INDICATOR];
+			_logger.LogTrace($"Using Common Name Indicator: {cnIndicator}");
+			List<string> emails = new List<string>();
+			if (productInfo.ProductID.Equals("secure_email_mailbox", StringComparison.OrdinalIgnoreCase))
+			{
+				cnIndicator = "email_address";
+			}
+			if (cnIndicator.Equals("email_address", StringComparison.OrdinalIgnoreCase))
+			{
+				emails.Add(commonName);
+			}
+
+			// Convert to case-insensitive dictionary
+			Dictionary<string, string[]> sandict = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+			foreach (var s in san)
+			{
+				sandict.Add(s.Key, s.Value);
+			}
+
+
+			if (sandict.ContainsKey("Email"))
+			{
+				emails.AddRange(san["Email"]);
+			}
+			if (sandict.ContainsKey("Rfc822Name"))
+			{
+				emails.AddRange(san["Rfc822Name"]);
+			}
+
+			if (productInfo.ProductParameters.TryGetValue(CertCentralConstants.RequestAttributes.ORGANIZATION_NAME, out string orgName))
+			{
+				// If org name is provided as a parameter, it overrides whatever is in the CSR
+				if (!string.IsNullOrEmpty(orgName))
+				{
+					organization = orgName;
+				}
+			}
+
+			CertCentralClient client = CertCentralClientUtilities.BuildCertCentralClient(_config);
+			int? organizationId = null;
+			if (organization == null)
+			{
+				throw new Exception("No organization provided in either subject or attributes, unable to enroll");
+			}
+
+			ListOrganizationsResponse organizations = client.ListOrganizations(new ListOrganizationsRequest());
+			if (organizations.Status == CertCentralBaseResponse.StatusType.ERROR)
+			{
+				_logger.LogError($"Error from CertCentral client: {organizations.Errors.First().message}");
+			}
+
+			Organization org = organizations.Organizations.FirstOrDefault(x => x.Name.Equals(organization, StringComparison.OrdinalIgnoreCase));
+			if (org != null)
+			{
+				organizationId = org.Id;
+			}
+			else
+			{
+				throw new Exception($"Organization '{organization}' is invalid for this account, please check name");
+			}
+
+			// Process metadata fields
+			orderRequest.CustomFields = new List<MetadataField>();
+			var metadataResponse = client.ListMetadata(new ListMetadataRequest());
+			if (metadataResponse.MetadataFields != null && metadataResponse.MetadataFields.Count > 0)
+			{
+				var metadata = metadataResponse.MetadataFields.Where(m => m.Active).ToList();
+				_logger.LogTrace($"Found {metadata.Count()} active metadata fields in the account");
+				foreach (var field in metadata)
+				{
+					// See if the field has been provided in the request
+					if (productInfo.ProductParameters.TryGetValue(field.Label, out string fieldValue))
+					{
+						_logger.LogTrace($"Found {field.Label} in the request, adding...");
+						orderRequest.CustomFields.Add(new MetadataField() { MetadataId = field.Id, Value = fieldValue });
+					}
+				}
+			}
+
+			// Get Division ID (if present)
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.ENROLL_DIVISION_ID) && !string.IsNullOrEmpty(productInfo.ProductParameters[CertCentralConstants.Config.ENROLL_DIVISION_ID]))
+			{
+				orderRequest.Container = new CertificateOrderContainer();
+				orderRequest.Container.Id = int.Parse(productInfo.ProductParameters[CertCentralConstants.Config.ENROLL_DIVISION_ID]);
+				_logger.LogTrace($"Using division ID: {orderRequest.Container.Id}");
+			}
+
+			// Get CA Cert ID (if present)
+			string caCertId = null;
+			if (productInfo.ProductParameters.ContainsKey("CACertId") && !string.IsNullOrEmpty(productInfo.ProductParameters["CACertId"]))
+			{
+				caCertId = (string)productInfo.ProductParameters["CACertId"];
+				_logger.LogTrace($"Using CACertID: {caCertId}");
+			}
+
+			if (customExpirationDate != null)
+			{
+				orderRequest.CustomExpirationDate = customExpirationDate;
+			}
+			else
+			{
+				orderRequest.ValidityYears = validityYears;
+			}
+			orderRequest.Certificate.Emails = emails;
+			orderRequest.Certificate.CSR = csr;
+			orderRequest.Certificate.SignatureHash = certType.signatureAlgorithm;
+			orderRequest.Certificate.CACertID = caCertId;
+			orderRequest.SetOrganization(organizationId);
+			string profileType = "strict";
+			if (productInfo.ProductParameters.ContainsKey(Constants.Config.PROFILE_TYPE))
+			{
+				profileType = productInfo.ProductParameters[Constants.Config.PROFILE_TYPE];
+			}
+			orderRequest.Certificate.ProfileType = profileType;
+			orderRequest.Certificate.CommonNameIndicator = cnIndicator;
+			if (productInfo.ProductID.Equals("secure_email_sponsor", StringComparison.OrdinalIgnoreCase))
+			{
+				if (cnIndicator.Equals("given_name_surname", StringComparison.OrdinalIgnoreCase))
+				{
+					orderRequest.Certificate.Individual.FirstName = productInfo.ProductParameters[Constants.Config.FIRST_NAME];
+					orderRequest.Certificate.Individual.LastName = productInfo.ProductParameters[Constants.Config.LAST_NAME];
+				}
+				else if (cnIndicator.Equals("pseudonym", StringComparison.OrdinalIgnoreCase))
+				{
+					orderRequest.Certificate.Individual.Pseudonym = productInfo.ProductParameters[Constants.Config.PSEUDONYM];
+				}
+			}
+			orderRequest.Certificate.UsageDesignation.PrimaryUsage = productInfo.ProductParameters[Constants.Config.SMIME_USAGE];
+
+			if (cnIndicator.Equals("email_address", StringComparison.OrdinalIgnoreCase))
+			{
+				orderRequest.Subject.IncludeEmail = true;
+			}
+			else if (cnIndicator.Equals("given_name_surname", StringComparison.OrdinalIgnoreCase))
+			{
+				orderRequest.Subject.IncludeGivenName = true;
+			}
+			else if (cnIndicator.Equals("pseudonym", StringComparison.OrdinalIgnoreCase))
+			{
+				orderRequest.Subject.IncludePseudonym = true;
+			}
+
+			orderRequest.DCVMethod = "email";
+
+			string priorCertSnString = null;
+			string priorCertReqID = null;
+			if (enrollmentType == EnrollmentType.RenewOrReissue)
+			{
+				enrollmentType = EnrollmentType.Renew;
+			}
+
+			if (enrollmentType == EnrollmentType.Renew)
+			{
+				priorCertReqID = _certificateDataReader.GetRequestIDBySerialNumber(priorCertSnString).Result;
+				if (string.IsNullOrEmpty(priorCertReqID))
+				{
+					throw new Exception($"No certificate with serial number '{priorCertSnString}' could be found.");
+				}
+			}
+
+			orderRequest.SkipApproval = true;
+
+			switch (enrollmentType)
+			{
+				case EnrollmentType.New:
+					return NewSmimeCertificate(client, orderRequest).Result;
+
+				case EnrollmentType.Renew:
+					return RenewSmime(client, orderRequest, productInfo, priorCertReqID).Result;
+
+				default:
+					throw new Exception($"The enrollment type '{enrollmentType}' is invalid for this cert type.");
+			}
 		}
 	}
 }

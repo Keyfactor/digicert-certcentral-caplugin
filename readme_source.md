@@ -61,3 +61,15 @@ Organization-Name | No | If specified, this value will override any organization
 RenewalWindowDays | No | The number of days from expiration that the gateway should do a reissue rather than a renewal. Default if not provided is 90, meaning any renewal request for certs that expire in more than 90 days will be treated as a reissue request.
 CertType | No | Allows you to specify whether the certs of this template are ssl or client certs. Valid values: ssl, client. If not provided, defaults to ssl.
 EnrollDivisionId | No | The division (container) ID to use for enrollments against this template.
+
+NOTE FOR SMIME CERTIFICATES:
+For product IDs secure_email_mailbox, secure_email_sponsor, and secure_email_organization, the following settings apply. Note that while they CAN be configured at the template level in the config portal, since most of these values might be enrollment specific, they can also be configured in Command as Enrollment Fields with the same name.
+
+SETTING | DESCRIPTION
+--|--
+CommonNameIndicator | Required for secure_email_sponsor and secure_email_organization products, ignored otherwise. Defines the source of the common name. Valid values are: email_address, given_name_surname, pseudonym, organization_name
+ProfileType | Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Default value is strict.
+FirstName | Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise.
+LastName | Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise.
+Pseudonym | Required for secure_email_* types if CommonNameIndicator is pseudonym, ignored otherwise.
+UsageDesignation | Required for secure_email_* types, ignored otherwise. The primary usage of the certificate. Valid values are: signing, key_management, dual_use

@@ -9,3 +9,4 @@
 * Add support for enrolling for client certs  
 * Option to filter sync by division ID  
 * Option to provide division ID for enrollment  
+* Add support for secure_email_* SMIME product types
