@@ -33,6 +33,12 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			public const string SYNC_EXPIRATION_DAYS = "SyncExpirationDays";
 			public const string CERT_TYPE = "CertType";
 			public const string ENROLL_DIVISION_ID = "EnrollDivisionId";
+			public const string COMMON_NAME_INDICATOR = "CommonNameIndicator";
+			public const string PROFILE_TYPE = "ProfileType";
+			public const string FIRST_NAME = "FirstName";
+			public const string LAST_NAME = "LastName";
+			public const string PSEUDONYM = "Pseudonym";
+			public const string SMIME_USAGE = "UsageDesignation";
 		}
 
 		public class RequestAttributes
@@ -44,6 +50,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		public class ProductTypes
 		{
 			public const string DV_SSL_CERT = "dv_ssl_certificate";
+			public static readonly List<string> SMIME_CERT = new List<string>()	 { "secure_email_mailbox", "secure_email_sponsor", "secure_email_organization" };
 		}
 	}
 }
