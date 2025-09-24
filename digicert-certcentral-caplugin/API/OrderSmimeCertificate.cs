@@ -12,14 +12,17 @@ using System.Threading.Tasks;
 
 namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 {
-	public class OrderRequest : CertCentralBaseRequest
+	public class OrderSmimeRequest : CertCentralBaseRequest
 	{
-		public OrderRequest(CertCentralCertType certType)
+		public OrderSmimeRequest(CertCentralCertType certType)
 		{
 			Resource = "services/v2/order/certificate/" + certType.ProductCode;
 			Method = "POST";
 			CertType = certType;
-			Certificate = new CertificateRequest();
+			Certificate = new SmimeCertificateRequest();
+			Certificate.Individual = new SmimeIndividual();
+			Certificate.UsageDesignation = new SmimeUsage();
+			Subject = new SmimeSubject();
 			CustomExpirationDate = null;
 		}
 
@@ -27,7 +30,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 		public CertCentralCertType CertType { get; set; }
 
 		[JsonProperty("certificate")]
-		public CertificateRequest Certificate { get; set; }
+		public SmimeCertificateRequest Certificate { get; set; }
 
 		[JsonProperty("organization")]
 		private IdInformation Organization { get; set; } // Set via SetOrganization method
@@ -60,6 +63,9 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 		[JsonProperty("skip_approval")]
 		public bool SkipApproval {  get; set; }
 
+		[JsonProperty("subject")]
+		public SmimeSubject Subject { get; set; }
+
 		public void SetOrganization(int? organizationId)
 		{
 			if (organizationId.HasValue)
@@ -76,87 +82,61 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 		}
 	}
 
-	public class CertificateRequest
+	public class SmimeSubject
 	{
-		[JsonProperty("common_name")]
-		public string CommonName { get; set; }
+		[JsonProperty("include_pseudonym")]
+		public bool IncludePseudonym { get; set; }
 
-		[JsonProperty("dns_names")]
-		public List<string> DNSNames { get; set; }
+		[JsonProperty("include_email")]
+		public bool IncludeEmail { get; set; }
 
+		[JsonProperty("include_given_name_surname")]
+		public bool IncludeGivenName { get; set; }
+		
+	}
+
+	public class SmimeCertificateRequest
+	{
 		[JsonProperty("emails")]
 		public List<String> Emails { get; set; }
 
 		[JsonProperty("csr")]
 		public string CSR { get; set; }
 
-		[JsonProperty("organization_units")]
-		public List<string> OrganizationUnits { get; set; }
-
-		[JsonProperty("server_platform")]
-		public IdInformation ServerPlatform { get; set; }
-
 		[JsonProperty("signature_hash")]
 		public string SignatureHash { get; set; }
 
 		[JsonProperty("ca_cert_id")]
 		public string CACertID { get; set; }
+
+		[JsonProperty("common_name_indicator")]
+		public string CommonNameIndicator { get; set; }
+
+		[JsonProperty("individual")]
+		public SmimeIndividual Individual { get; set; }
+
+		[JsonProperty("usage_designation")]
+		public SmimeUsage UsageDesignation { get; set; }
+
+		[JsonProperty("profile_type")]
+		public string ProfileType { get; set; }
 	}
 
-	public class CertificateOrderContainer
+	public class SmimeIndividual
 	{
-		[JsonProperty("id")]
-		public int Id { get; set; }
+		[JsonProperty("first_name")]
+		public string FirstName { get; set; }
+
+		[JsonProperty("last_name")]
+		public string LastName { get; set; }
+
+		[JsonProperty("pseudonym")]
+		public string Pseudonym { get; set; }
 	}
 
-	public class MetadataField
-	{
-		[JsonProperty("metadata_id")]
-		public int MetadataId { get; set; }
-
-		[JsonProperty("value")]
-		public string Value { get; set; }
-	}
-
-	public class OrderResponse : CertCentralBaseResponse
-	{
-		public OrderResponse()
-		{
-			this.Requests = new List<Requests>();
-			CertificateChain = null;
-		}
-
-		[JsonProperty("id")]
-		public int OrderId { get; set; }
-
-		[JsonProperty("requests")]
-		public List<Requests> Requests { get; set; }
-
-		[JsonProperty("certificate_id")]
-		public int? CertificateId { get; set; }
-
-		[JsonProperty("certificate_chain")]
-		public List<CertificateChainElement> CertificateChain { get; set; }
-
-		[JsonProperty("dcv_random_value")]
-		public string DCVRandomValue { get; set; }
-	}
-
-	public class Requests
-	{
-		[JsonProperty("id")]
-		public string Id { get; set; }
-
-		[JsonProperty("status")]
-		public string Status { get; set; }
-	}
-
-	public class CertificateChainElement
-	{
-		[JsonProperty("subject_common_name")]
-		public string SubjectCommonName { get; set; }
-
-		[JsonProperty("pem")]
-		public string PEM { get; set; }
-	}
+    public class SmimeUsage
+    {
+		[JsonProperty("primary_usage")]
+		public string PrimaryUsage { get; set; }
+    }
 }
