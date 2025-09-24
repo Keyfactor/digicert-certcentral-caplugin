@@ -34,7 +34,10 @@
 </p>
 
 
-TODO Overview is a required section
+The Digicert CertCentral AnyCA REST plugin extends the capabilities of Digicert's CertCentral product to Keyfactor Command via the Keyfactor AnyCA Gateway REST. The plugin represents a fully featured AnyCA REST Plugin with the following capabilies:
+* SSL Certificate Synchronization
+* SSL Certificate Enrollment
+* SSL Certificate Revocation
 
 ## Compatibility
 
@@ -47,7 +50,7 @@ The DigiCert CertCentral   Gateway AnyCA Gateway REST plugin is supported by Key
 
 ## Requirements
 
-TODO Requirements is a required section
+An API Key within your Digicert account that has the necessary permissions to enroll, approve, and revoke certificates.
 
 ## Installation
 
@@ -76,7 +79,7 @@ TODO Requirements is a required section
 
     * **Gateway Registration**
 
-        TODO Gateway Registration is a required section
+        In order to enroll for certificates the Keyfactor Command server must trust the trust chain. Once you identify your Root and/or Subordinate CA in your Digicert account, make sure to download and import the certificate chain into the Command Server certificate store
 
     * **CA Connection**
 
@@ -92,11 +95,24 @@ TODO Requirements is a required section
         * **SyncExpirationDays** - If FilterExpiredOrders is set to true, this setting determines how many days in the past to still return expired orders. For example, a value of 30 means the sync will return any certs that expired within the past 30 days. A value of 0 means the sync will not return any certs that expired before the current day. This value is ignored if FilterExpiredOrders is false. 
         * **Enabled** - Flag to Enable or Disable gateway functionality. Disabling is primarily used to allow creation of the CA prior to configuration information being available. 
 
-2. TODO Certificate Template Creation Step is a required section
+2. Note for SMIME product types (Secure Email types): The template configuration fields provided for those are not required to be filled out in the gateway config. Many of those values would change on a per-enrollment basis. The way to handle that is to create Enrollment fields in Command with the same name (for example: CommonNameIndicator) and then any values populated in those fields will override any static values provided in the configuration.
 
 3. Follow the [official Keyfactor documentation](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Keyfactor.htm) to add each defined Certificate Authority to Keyfactor Command and import the newly defined Certificate Templates.
 
-4. TODO Custom Enrollment Parameter Creation Step is an optional section. If this section doesn't seem necessary on initial glance, please delete it. Refer to the docs on [Confluence](https://keyfactor.atlassian.net/wiki/x/SAAyHg) for more info
+4. In Keyfactor Command (v12.3+), for each imported Certificate Template, follow the [official documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Configuring%20Template%20Options.htm) to define enrollment fields for each of the following parameters:
+
+    * **LifetimeDays** - OPTIONAL: The number of days of validity to use when requesting certs. If not provided, default is 365. 
+    * **CACertId** - OPTIONAL: ID of issuing CA to use by DigiCert. If not provided, the default for your account will be used. 
+    * **Organization-Name** - OPTIONAL: For requests that will not have a subject (such as ACME) you can use this field to provide the organization name. Value supplied here will override any CSR values, so do not include this field if you want the organization from the CSR to be used. 
+    * **RenewalWindowDays** - OPTIONAL: The number of days from certificate expiration that the gateway should do a renewal rather than a reissue. If not provided, default is 90. 
+    * **CertType** - OPTIONAL: The type of cert to enroll for. Valid values are 'ssl' and 'client'. The value provided here must be consistant with the ProductID. If not provided, default is 'ssl'. Ignored for secure_email_* product types. 
+    * **EnrollDivisionId** - OPTIONAL: The division (container) ID to use for enrollments against this template. 
+    * **CommonNameIndicator** - Required for secure_email_sponsor and secure_email_organization products, ignored otherwise. Defines the source of the common name. Valid values are: email_address, given_name_surname, pseudonym, organization_name 
+    * **ProfileType** - Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Default value is strict. 
+    * **FirstName** - Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise. 
+    * **LastName** - Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise. 
+    * **Pseudonym** - Required for secure_email_* types if CommonNameIndicator is pseudonym, ignored otherwise. 
+    * **UsageDesignation** - Required for secure_email_* types, ignored otherwise. The primary usage of the certificate. Valid values are: signing, key_management, dual_use 
 
 
 
