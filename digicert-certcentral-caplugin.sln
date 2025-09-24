@@ -8,6 +8,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A6058317-1B5E-4E7C-9669-B3A6C0E605BB}"
 	ProjectSection(SolutionItems) = preProject
 		CHANGELOG.md = CHANGELOG.md
+		docsource\configuration.md = docsource\configuration.md
 		integration-manifest.json = integration-manifest.json
 		.github\workflows\keyfactor-bootstrap-workflow.yml = .github\workflows\keyfactor-bootstrap-workflow.yml
 		readme_source.md = readme_source.md
