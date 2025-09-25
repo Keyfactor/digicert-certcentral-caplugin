@@ -1021,7 +1021,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			CertificateTypeDetailsRequest detailsRequest = new CertificateTypeDetailsRequest(product.NameId);
 
 			detailsRequest.ContainerId = null;
-			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID) && !string.IsNullOrEmpty())
+			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID))
 			{
 				string div = (string)connectionInfo[CertCentralConstants.Config.DIVISION_ID];
 				if (!string.IsNullOrWhiteSpace(div))
