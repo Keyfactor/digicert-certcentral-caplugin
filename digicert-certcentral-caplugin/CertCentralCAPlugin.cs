@@ -1021,15 +1021,19 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			CertificateTypeDetailsRequest detailsRequest = new CertificateTypeDetailsRequest(product.NameId);
 
 			detailsRequest.ContainerId = null;
-			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID))
+			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID) && !string.IsNullOrEmpty())
 			{
-				if (int.TryParse($"{connectionInfo[CertCentralConstants.Config.DIVISION_ID]}", out int divId))
+				string div = connectionInfo[CertCentralConstants.Config.DIVISION_ID];
+				if (!string.IsNullOrEmpty(div)
 				{
-					detailsRequest.ContainerId = divId;
-				}
-				else
-				{
-					throw new AnyCAValidationException($"Unable to parse division ID '{connectionInfo[CertCentralConstants.Config.DIVISION_ID]}'. Check that this is a valid division ID.");
+					if (int.TryParse($"{div}", out int divId))
+					{
+						detailsRequest.ContainerId = divId;
+					}
+					else
+					{
+						throw new AnyCAValidationException($"Unable to parse division ID '{div}'. Check that this is a valid division ID.");
+					}
 				}
 			}
 
