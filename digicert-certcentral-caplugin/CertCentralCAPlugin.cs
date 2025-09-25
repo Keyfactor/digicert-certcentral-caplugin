@@ -1023,8 +1023,8 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			detailsRequest.ContainerId = null;
 			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID) && !string.IsNullOrEmpty())
 			{
-				string div = connectionInfo[CertCentralConstants.Config.DIVISION_ID];
-				if (!string.IsNullOrEmpty(div))
+				string div = (string)connectionInfo[CertCentralConstants.Config.DIVISION_ID];
+				if (!string.IsNullOrWhiteSpace(div))
 				{
 					if (int.TryParse($"{div}", out int divId))
 					{
