@@ -1,12 +1,106 @@
 {
-  "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
-  "integration_type": "anyca-plugin",
-  "name": "DigiCert CertCentral AnyCA REST Gateway Plugin",
-  "status": "production",
-  "support_level": "kf-supported",
-  "link_github": true,
-  "update_catalog": true,
-  "description": "DigiCert CertCentral plugin for the AnyCA REST Gateway framework",
-  "gateway_framework": "24.2.0",
-  "release_dir": "digicert-certcentral-caplugin/bin/Release/net6.0"
+    "$schema": "https://keyfactor.github.io/v2/integration-manifest-schema.json",
+    "integration_type": "anyca-plugin",
+    "name": "DigiCert CertCentral AnyCA REST Gateway Plugin",
+    "status": "production",
+    "support_level": "kf-supported",
+    "link_github": true,
+    "update_catalog": true,
+    "description": "DigiCert CertCentral plugin for the AnyCA REST Gateway framework",
+    "gateway_framework": "24.2.0",
+    "release_dir": "digicert-certcentral-caplugin/bin/Release",
+    "release_project": "digicert-certcentral-caplugin/digicert-certcentral-caplugin.csproj",
+    "about": {
+        "carest": {
+            "product_ids": [],
+            "ca_plugin_config": [
+                {
+                    "name": "APIKey",
+                    "description": "API Key for connecting to DigiCert"
+                },
+                {
+                    "name": "DivisionId",
+                    "description": "Division ID to use for retrieving product details (only if account is configured with per-divison product settings)"
+                },
+                {
+                    "name": "Region",
+                    "description": "The geographic region that your DigiCert CertCentral account is in. Valid options are US and EU."
+                },
+                {
+                    "name": "RevokeCertificateOnly",
+                    "description": "Default DigiCert behavior on revocation requests is to revoke the entire order. If this value is changed to 'true', revocation requests will instead just revoke the individual certificate."
+                },
+                {
+                    "name": "SyncCAFilter",
+                    "description": "If you list one or more CA IDs here (comma-separated), the sync process will only sync records from those CAs. If you want to sync all CA IDs, leave this field empty."
+                },
+                {
+                    "name": "SyncDivisionFilter",
+                    "description": "If you list one or more Divison IDs (also known as Container IDs) here (comma-separated), the sync process will filter records to only return orders from those divisions. If you want to sync all divisions, leave this field empty. Note that this has no relationship to the value of the DivisionId config field."
+                },
+                {
+                    "name": "FilterExpiredOrders",
+                    "description": "If set to 'true', syncing will apply a filter to not return orders that are expired for longer than specified in SyncExpirationDays."
+                },
+                {
+                    "name": "SyncExpirationDays",
+                    "description": "If FilterExpiredOrders is set to true, this setting determines how many days in the past to still return expired orders. For example, a value of 30 means the sync will return any certs that expired within the past 30 days. A value of 0 means the sync will not return any certs that expired before the current day. This value is ignored if FilterExpiredOrders is false."
+                },
+                {
+                    "name": "Enabled",
+                    "description": "Flag to Enable or Disable gateway functionality. Disabling is primarily used to allow creation of the CA prior to configuration information being available."
+                }
+            ],
+            "enrollment_config": [
+                {
+                    "name": "LifetimeDays",
+                    "description": "OPTIONAL: The number of days of validity to use when requesting certs. If not provided, default is 365."
+                },
+                {
+                    "name": "CACertId",
+                    "description": "OPTIONAL: ID of issuing CA to use by DigiCert. If not provided, the default for your account will be used."
+                },
+                {
+                    "name": "Organization-Name",
+                    "description": "OPTIONAL: For requests that will not have a subject (such as ACME) you can use this field to provide the organization name. Value supplied here will override any CSR values, so do not include this field if you want the organization from the CSR to be used."
+                },
+                {
+                    "name": "RenewalWindowDays",
+                    "description": "OPTIONAL: The number of days from certificate expiration that the gateway should do a renewal rather than a reissue. If not provided, default is 90."
+                },
+                {
+                    "name": "CertType",
+                    "description": "OPTIONAL: The type of cert to enroll for. Valid values are 'ssl' and 'client'. The value provided here must be consistant with the ProductID. If not provided, default is 'ssl'. Ignored for secure_email_* product types."
+                },
+                {
+                    "name": "EnrollDivisionId",
+                    "description": "OPTIONAL: The division (container) ID to use for enrollments against this template."
+                },
+                {
+                    "name": "CommonNameIndicator",
+                    "description": "Required for secure_email_sponsor and secure_email_organization products, ignored otherwise. Defines the source of the common name. Valid values are: email_address, given_name_surname, pseudonym, organization_name"
+                },
+                {
+                    "name": "ProfileType",
+                    "description": "Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Default value is strict."
+                },
+                {
+                    "name": "FirstName",
+                    "description": "Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise."
+                },
+                {
+                    "name": "LastName",
+                    "description": "Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise."
+                },
+                {
+                    "name": "Pseudonym",
+                    "description": "Required for secure_email_* types if CommonNameIndicator is pseudonym, ignored otherwise."
+                },
+                {
+                    "name": "UsageDesignation",
+                    "description": "Required for secure_email_* types, ignored otherwise. The primary usage of the certificate. Valid values are: signing, key_management, dual_use"
+                }
+            ]
+        }
+    }
 }
