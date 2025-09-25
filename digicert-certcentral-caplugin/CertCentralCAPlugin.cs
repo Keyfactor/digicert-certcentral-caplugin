@@ -1024,7 +1024,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID) && !string.IsNullOrEmpty())
 			{
 				string div = connectionInfo[CertCentralConstants.Config.DIVISION_ID];
-				if (!string.IsNullOrEmpty(div)
+				if (!string.IsNullOrEmpty(div))
 				{
 					if (int.TryParse($"{div}", out int divId))
 					{
