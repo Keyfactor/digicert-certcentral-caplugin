@@ -295,7 +295,32 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 
 		public OrderResponse OrderCertificate(OrderRequest request)
 		{
-			CertCentralResponse response = Request(request, JsonConvert.SerializeObject(request, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
+			string jsonRequest = JsonConvert.SerializeObject(request, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+
+			Logger.LogTrace($"Order request:\n{jsonRequest}");
+
+			CertCentralResponse response = Request(request, jsonRequest);
+
+			OrderResponse orderResponse = new OrderResponse();
+			if (!response.Success)
+			{
+				Errors errors = JsonConvert.DeserializeObject<Errors>(response.Response);
+				orderResponse.Status = CertCentralBaseResponse.StatusType.ERROR;
+				orderResponse.Errors = errors.errors;
+			}
+			else
+				orderResponse = JsonConvert.DeserializeObject<OrderResponse>(response.Response);
+
+			return orderResponse;
+		}
+
+		public OrderResponse OrderSmimeCertificate(OrderSmimeRequest request)
+		{
+			string jsonRequest = JsonConvert.SerializeObject(request, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+
+			Logger.LogTrace($"Order request:\n{jsonRequest}");
+
+			CertCentralResponse response = Request(request, jsonRequest);
 
 			OrderResponse orderResponse = new OrderResponse();
 			if (!response.Success)
@@ -312,7 +337,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 
 		public OrderResponse ReissueCertificate(ReissueRequest request)
 		{
-			CertCentralResponse response = Request(request, JsonConvert.SerializeObject(request, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
+			string jsonRequest = JsonConvert.SerializeObject(request, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+			Logger.LogTrace($"Reissue request:\n{jsonRequest}");
+
+			CertCentralResponse response = Request(request, jsonRequest);
 
 			OrderResponse reissueResponse = new OrderResponse();
 			if (!response.Success)
@@ -473,7 +501,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 			return dlCertificateRequestResponse;
 		}
 
-		public ListCertificateOrdersResponse ListAllCertificateOrders(bool ignoreExpired = false, int expiredWindow = 0)
+		public ListCertificateOrdersResponse ListAllCertificateOrders(bool ignoreExpired = false, int expiredWindow = 0, string divId = "")
 		{
 			int batch = 1000;
 			ListCertificateOrdersResponse totalResponse = new ListCertificateOrdersResponse();
@@ -485,7 +513,8 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 					limit = batch,
 					offset = totalResponse.orders.Count,
 					ignoreExpired = ignoreExpired,
-					expiredWindow = expiredWindow
+					expiredWindow = expiredWindow,
+					divID = divId
 				};
 
 				CertCentralResponse response = Request(request, request.BuildParameters());
