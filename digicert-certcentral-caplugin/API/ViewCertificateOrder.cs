@@ -78,6 +78,9 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 		[JsonProperty("product")]
 		public Product product { get; set; }
 
+		[JsonProperty("container")]
+		public Container container { get; set; }
+
 		[JsonProperty("organization_contact")]
 		public Contact organization_contact { get; set; }
 
