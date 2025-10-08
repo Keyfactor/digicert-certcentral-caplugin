@@ -101,6 +101,9 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 
 		[JsonProperty("ca_cert_id")]
 		public string CACertID { get; set; }
+
+		[JsonProperty("profile_option")]
+		public string ProfileOption { get; set; }
 	}
 
 	public class CertificateOrderContainer
