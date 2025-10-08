@@ -600,7 +600,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				},
 				[CertCentralConstants.Config.PROFILE_TYPE] = new PropertyConfigInfo()
 				{
-					Comments = "Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Default value is strict.",
+					Comments = "Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Use 'multipurpose' if your cert includes any additional EKUs such as client auth. Default if not provided is dependent on product configuration within Digicert portal.",
 					Hidden = false,
 					DefaultValue = "strict",
 					Type = "String"
@@ -1023,7 +1023,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			detailsRequest.ContainerId = null;
 			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID))
 			{
-				string div = (string)connectionInfo[CertCentralConstants.Config.DIVISION_ID];
+				string div = connectionInfo[CertCentralConstants.Config.DIVISION_ID].ToString();
 				if (!string.IsNullOrWhiteSpace(div))
 				{
 					if (int.TryParse($"{div}", out int divId))
@@ -1680,9 +1680,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				}
 			}
 
+			string profile = null;
 			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.PROFILE_TYPE))
 			{
-				string profile = productInfo.ProductParameters[CertCentralConstants.Config.PROFILE_TYPE].ToString();
+				profile = productInfo.ProductParameters[CertCentralConstants.Config.PROFILE_TYPE].ToString();
 
 				// Only validate if value provided
 				if (!string.IsNullOrEmpty(profile))
@@ -1692,6 +1693,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					{
 						throw new Exception($"Invalid profile type provided. Valid values are: strict, multipurpose");
 					}
+				}
+				else
+				{
+					profile = null;
 				}
 			}
 
@@ -1884,12 +1889,11 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			orderRequest.Certificate.SignatureHash = certType.signatureAlgorithm;
 			orderRequest.Certificate.CACertID = caCertId;
 			orderRequest.SetOrganization(organizationId);
-			string profileType = "strict";
-			if (productInfo.ProductParameters.ContainsKey(Constants.Config.PROFILE_TYPE))
+			//If profile type is not provided, use the default on the digicert product configuration
+			if (!string.IsNullOrEmpty(profile))
 			{
-				profileType = productInfo.ProductParameters[Constants.Config.PROFILE_TYPE];
-			}
-			orderRequest.Certificate.ProfileType = profileType;
+				orderRequest.Certificate.ProfileType = profile;
+			}		
 			orderRequest.Certificate.CommonNameIndicator = cnIndicator;
 			if (productInfo.ProductID.Equals("secure_email_sponsor", StringComparison.OrdinalIgnoreCase))
 			{

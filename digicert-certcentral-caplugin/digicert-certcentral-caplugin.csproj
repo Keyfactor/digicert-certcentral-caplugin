@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <AssemblyName>DigicertCAPlugin</AssemblyName>
+    <AssemblyVersion>2.1.1</AssemblyVersion>
+    <FileVersion>2.1.1</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
