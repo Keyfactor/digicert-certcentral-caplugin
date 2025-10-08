@@ -294,6 +294,11 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			string priorCertSnString = null;
 			string priorCertReqID = null;
 
+			if (typeOfCert.Equals("ssl") && Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]))
+			{
+				orderRequest.Certificate.ProfileOption = "server_client_auth_eku";
+			}
+
 			// Current gateway core leaves it up to the integration to determine if it is a renewal or a reissue
 			if (enrollmentType == EnrollmentType.RenewOrReissue)
 			{
@@ -583,6 +588,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					Hidden = false,
 					DefaultValue = "ssl",
 					Type = "String"
+				},
+				[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH] = new PropertyConfigInfo()
+				{
+					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: This feature is currently planned to be removed by DigiCert in May 2026.",
+					Hidden = false,
+					DefaultValue = false,
+					Type = "Boolean"
 				},
 				[CertCentralConstants.Config.ENROLL_DIVISION_ID] = new PropertyConfigInfo()
 				{
