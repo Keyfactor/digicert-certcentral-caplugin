@@ -73,6 +73,10 @@
                     "description": "OPTIONAL: The type of cert to enroll for. Valid values are 'ssl' and 'client'. The value provided here must be consistant with the ProductID. If not provided, default is 'ssl'. Ignored for secure_email_* product types."
                 },
                 {
+                    "name": "IncludeClientAuthEKU",
+                    "description": "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: This feature is currently planned to be removed by DigiCert in May 2026."
+                },
+                {
                     "name": "EnrollDivisionId",
                     "description": "OPTIONAL: The division (container) ID to use for enrollments against this template."
                 },
@@ -82,7 +86,7 @@
                 },
                 {
                     "name": "ProfileType",
-                    "description": "Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Default value is strict."
+                    "description": "Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Use 'multipurpose' if your cert includes any additional EKUs such as client auth. Default if not provided is dependent on product configuration within Digicert portal."
                 },
                 {
                     "name": "FirstName",
