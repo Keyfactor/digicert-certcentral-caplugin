@@ -297,6 +297,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			if (typeOfCert.Equals("ssl") && Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]))
 			{
 				orderRequest.Certificate.ProfileOption = "server_client_auth_eku";
+				_logger.LogWarning($"{CertCentralConstants.Config.INCLUDE_CLIENT_AUTH}: Ability to include client auth EKU in SSL certs is currently planned to cease in May 2026. Make sure any workflows that depend on this feature are updated before then to avoid interruptions.");
 			}
 
 			// Current gateway core leaves it up to the integration to determine if it is a renewal or a reissue
