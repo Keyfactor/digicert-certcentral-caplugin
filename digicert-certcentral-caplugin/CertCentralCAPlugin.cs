@@ -294,6 +294,12 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			string priorCertSnString = null;
 			string priorCertReqID = null;
 
+			if (typeOfCert.Equals("ssl") && Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]))
+			{
+				orderRequest.Certificate.ProfileOption = "server_client_auth_eku";
+				_logger.LogWarning($"{CertCentralConstants.Config.INCLUDE_CLIENT_AUTH}: Ability to include client auth EKU in SSL certs is currently planned to cease in May 2026. Make sure any workflows that depend on this feature are updated before then to avoid interruptions.");
+			}
+
 			// Current gateway core leaves it up to the integration to determine if it is a renewal or a reissue
 			if (enrollmentType == EnrollmentType.RenewOrReissue)
 			{
@@ -584,6 +590,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					DefaultValue = "ssl",
 					Type = "String"
 				},
+				[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH] = new PropertyConfigInfo()
+				{
+					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: This feature is currently planned to be removed by DigiCert in May 2026.",
+					Hidden = false,
+					DefaultValue = false,
+					Type = "Boolean"
+				},
 				[CertCentralConstants.Config.ENROLL_DIVISION_ID] = new PropertyConfigInfo()
 				{
 					Comments = "OPTIONAL: The division (container) ID to use for enrollments against this template.",
@@ -600,7 +613,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				},
 				[CertCentralConstants.Config.PROFILE_TYPE] = new PropertyConfigInfo()
 				{
-					Comments = "Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Default value is strict.",
+					Comments = "Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Use 'multipurpose' if your cert includes any additional EKUs such as client auth. Default if not provided is dependent on product configuration within Digicert portal.",
 					Hidden = false,
 					DefaultValue = "strict",
 					Type = "String"
@@ -1023,7 +1036,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			detailsRequest.ContainerId = null;
 			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID))
 			{
-				string div = (string)connectionInfo[CertCentralConstants.Config.DIVISION_ID];
+				string div = connectionInfo[CertCentralConstants.Config.DIVISION_ID].ToString();
 				if (!string.IsNullOrWhiteSpace(div))
 				{
 					if (int.TryParse($"{div}", out int divId))
@@ -1680,9 +1693,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				}
 			}
 
+			string profile = null;
 			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.PROFILE_TYPE))
 			{
-				string profile = productInfo.ProductParameters[CertCentralConstants.Config.PROFILE_TYPE].ToString();
+				profile = productInfo.ProductParameters[CertCentralConstants.Config.PROFILE_TYPE].ToString();
 
 				// Only validate if value provided
 				if (!string.IsNullOrEmpty(profile))
@@ -1692,6 +1706,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					{
 						throw new Exception($"Invalid profile type provided. Valid values are: strict, multipurpose");
 					}
+				}
+				else
+				{
+					profile = null;
 				}
 			}
 
@@ -1884,12 +1902,11 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			orderRequest.Certificate.SignatureHash = certType.signatureAlgorithm;
 			orderRequest.Certificate.CACertID = caCertId;
 			orderRequest.SetOrganization(organizationId);
-			string profileType = "strict";
-			if (productInfo.ProductParameters.ContainsKey(Constants.Config.PROFILE_TYPE))
+			//If profile type is not provided, use the default on the digicert product configuration
+			if (!string.IsNullOrEmpty(profile))
 			{
-				profileType = productInfo.ProductParameters[Constants.Config.PROFILE_TYPE];
-			}
-			orderRequest.Certificate.ProfileType = profileType;
+				orderRequest.Certificate.ProfileType = profile;
+			}		
 			orderRequest.Certificate.CommonNameIndicator = cnIndicator;
 			if (productInfo.ProductID.Equals("secure_email_sponsor", StringComparison.OrdinalIgnoreCase))
 			{
