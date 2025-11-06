@@ -615,7 +615,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				{
 					Comments = "Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Use 'multipurpose' if your cert includes any additional EKUs such as client auth. Default if not provided is dependent on product configuration within Digicert portal.",
 					Hidden = false,
-					DefaultValue = "strict",
+					DefaultValue = "",
 					Type = "String"
 				},
 				[CertCentralConstants.Config.FIRST_NAME] = new PropertyConfigInfo()
@@ -1557,6 +1557,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			var orderCerts = GetAllCertsForOrder(orderId);
 
 			List<AnyCAPluginCertificate> certList = new List<AnyCAPluginCertificate>();
+			List<string> pemList = new List<string>();
 
 			foreach (var cert in orderCerts)
 			{
@@ -1578,6 +1579,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 							throw new Exception($"Unexpected error downloading certificate {certId} for order {orderId}: {certificateChainResponse.Errors.FirstOrDefault()?.message}");
 						}
 					}
+					//Another check for duplicate PEMs to get arround issue with DigiCert API returning incorrect data sometimes on reissued/duplicate certs
+					if (pemList.Contains(certificate))
+					{
+						_logger.LogWarning($"Found duplicate PEM for ID {caReqId}. Skipping...");
+						continue;
+					}
+					pemList.Add(certificate);
 					var connCert = new AnyCAPluginCertificate
 					{
 						CARequestID = caReqId,
