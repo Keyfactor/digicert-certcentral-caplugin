@@ -760,7 +760,9 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 
-			lastSync = lastSync.HasValue ? lastSync.Value.AddHours(-7) : DateTime.MinValue; // DigiCert issue with treating the timezone as mountain time. -7 to accomodate DST
+			// DigiCert issue with treating the timezone as mountain time. -7 hours to accomodate DST
+			// If no last sync, use 7 days in the past as the starting point (only relevant for incremental syncs)
+			lastSync = lastSync.HasValue ? lastSync.Value.AddHours(-7) : DateTime.UtcNow.AddDays(-7); 
 			DateTime? utcDate = DateTime.UtcNow.AddDays(1);
 			string lastSyncFormat = FormatSyncDate(lastSync);
 			string todaySyncFormat = FormatSyncDate(utcDate);
