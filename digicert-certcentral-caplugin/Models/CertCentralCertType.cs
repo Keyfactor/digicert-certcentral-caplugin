@@ -16,7 +16,6 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Models
         #region Private Fields
 
         private static readonly ILogger Logger = LogHandler.GetClassLogger<CertCentralCertType>();
-        private static List<CertCentralCertType> _allTypes;
 
         #endregion Private Fields
 
@@ -62,12 +61,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Models
 		/// <returns></returns>
 		public static List<CertCentralCertType> GetAllTypes(CertCentralConfig config)
         {
-            if (_allTypes == null || !_allTypes.Any())
-            {
-                _allTypes = RetrieveCertCentralCertTypes(config);
-            }
-
-            return _allTypes;
+			return RetrieveCertCentralCertTypes(config);
         }
 
         /// <summary>
