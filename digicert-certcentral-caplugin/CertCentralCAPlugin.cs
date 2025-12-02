@@ -764,6 +764,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			// If no last sync, use a 6 day window for the sync range (only relevant for incremental syncs)
 			lastSync = lastSync.HasValue ? lastSync.Value.AddHours(-7) : DateTime.UtcNow.AddDays(-5); 
 			DateTime? utcDate = DateTime.UtcNow.AddDays(1);
+			if ((utcDate.Value - lastSync.Value).Days > 6)
+			{
+				lastSync = DateTime.UtcNow.AddDays(-5);
+			}
 			string lastSyncFormat = FormatSyncDate(lastSync);
 			string todaySyncFormat = FormatSyncDate(utcDate);
 
