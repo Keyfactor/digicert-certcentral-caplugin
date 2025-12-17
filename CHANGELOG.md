@@ -16,3 +16,8 @@
 	* NOTE: This is a temporary feature which is planned for loss of support by Digicert in May 2026   
 * For smime certs, use profile type defined on the product as the default if not supplied, rather than just defaulting to 'strict'  
 * Hotfix for data type conversion  
+
+### 2.1.2  
+* Hotfix for incremental sync to default to a 6 day window if no previous incremental sync has run  
+* Workaround for DigiCert API issue where retrieving the PEM data of multiple certificates in the same order can occasionally return duplicate data rather than the correct cert  
+* Remove caching of product ID lookups from DigiCert account  
