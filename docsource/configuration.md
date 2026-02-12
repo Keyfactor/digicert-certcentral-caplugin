@@ -18,3 +18,7 @@ In order to enroll for certificates the Keyfactor Command server must trust the 
 
 Note for SMIME product types (Secure Email types): The template configuration fields provided for those are not required to be filled out in the gateway config. Many of those values would change on a per-enrollment basis. The way to handle that is to create Enrollment fields in Command with the same name (for example: CommonNameIndicator) and then any values populated in those fields will override any static values provided in the configuration.
 
+## Certificate Duplicates
+
+DigiCert supports the ability to duplicate existing certificate orders. To take advantage of this functionality, in Keyfactor Command, under the enrollment pattern you're using, create an Enrollment Field named 'Duplicate' of type Multiple Choice, and the values 'False', 'True'. When performing a renew operation against that enrollment pattern, set the value to True to tell the gateway to duplicate instead of renew. The field will be ignored on new enrollments.
+
