@@ -16,6 +16,7 @@ using Microsoft.Win32.SafeHandles;
 using Newtonsoft.Json;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Pqc.Crypto.Falcon;
 
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
@@ -300,31 +301,54 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				_logger.LogWarning($"{CertCentralConstants.Config.INCLUDE_CLIENT_AUTH}: Ability to include client auth EKU in SSL certs is currently planned to cease in May 2026. Make sure any workflows that depend on this feature are updated before then to avoid interruptions.");
 			}
 
-			// Current gateway core leaves it up to the integration to determine if it is a renewal or a reissue
+			bool dupe = false;
+			// Current gateway core leaves it up to the integration to determine if it is a renewal, a reissue, or a duplicate
 			if (enrollmentType == EnrollmentType.RenewOrReissue)
 			{
-				//// Determine if we're going to do a renew or a reissue.
+				//// Determine if we're going to do a renew, reissue, or duplicate.
 				priorCertSnString = productInfo.ProductParameters["PriorCertSN"];
 				_logger.LogTrace($"Attempting to retrieve the certificate with serial number {priorCertSnString}.");
-				var reqId = _certificateDataReader.GetRequestIDBySerialNumber(priorCertSnString).Result;
-				if (string.IsNullOrEmpty(reqId))
+				priorCertReqID = await _certificateDataReader.GetRequestIDBySerialNumber(priorCertSnString);
+				if (string.IsNullOrEmpty(priorCertReqID))
 				{
 					throw new Exception($"No certificate with serial number '{priorCertSnString}' could be found.");
 				}
-				var expDate = _certificateDataReader.GetExpirationDateByRequestId(reqId);
 
-				var renewCutoff = DateTime.Now.AddDays(renewWindow * -1);
-
-				if (expDate > renewCutoff)
+				if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.DUPLICATE))
 				{
-					_logger.LogTrace($"Certificate with serial number {priorCertSnString} is within renewal window");
-					enrollmentType = EnrollmentType.Renew;
+					string dupStr = productInfo.ProductParameters[CertCentralConstants.Config.DUPLICATE].ToString();
+					if (!bool.TryParse(dupStr, out dupe))
+					{
+						_logger.LogError($"Could not parse 'Duplicate' field as true or false. Check configuration. Value: {dupStr}");
+						throw new Exception($"Could not parse 'Duplicate' field as true or false. Check configuration");
+					}
+				}
+				if (!dupe)
+				{
+					var expDate = _certificateDataReader.GetExpirationDateByRequestId(priorCertReqID);
+
+					var renewCutoff = DateTime.Now.AddDays(renewWindow * -1);
+
+					if (expDate > renewCutoff)
+					{
+						_logger.LogTrace($"Certificate with serial number {priorCertSnString} is within renewal window");
+						enrollmentType = EnrollmentType.Renew;
+					}
+					else
+					{
+						_logger.LogTrace($"Certificate with serial number {priorCertSnString} is not within renewal window. Reissuing...");
+						enrollmentType = EnrollmentType.Reissue;
+					}
 				}
 				else
 				{
-					_logger.LogTrace($"Certificate with serial number {priorCertSnString} is not within renewal window. Reissuing...");
-					enrollmentType = EnrollmentType.Reissue;
+					_logger.LogTrace($"'Duplicate' flag set, performing duplication");
 				}
+			}
+
+			if (dupe)
+			{
+				return await Duplicate(client, productInfo, priorCertReqID, commonName, csr, dnsNames, signatureHash, caCertId);
 			}
 
 			// Check if the order has more validity in it (multi-year cert). If so, do a reissue instead of a renew
@@ -1457,6 +1481,46 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			_logger.LogTrace("Attempting to reissue certificate.");
 			return await ExtractEnrollmentResult(client, client.ReissueCertificate(reissueRequest), commonName);
+		}
+
+		/// <summary>
+		/// Duplicates a certificate.
+		/// </summary>
+		/// <param name="client">The client used to contact DigiCert.</param>
+		/// <param name="request">The <see cref="OrderRequest"/>.</param>
+		/// <param name="enrollmentProductInfo">Information about the DigiCert product this certificate uses.</param>
+		/// <returns></returns>
+		private async Task<EnrollmentResult> Duplicate(CertCentralClient client, EnrollmentProductInfo enrollmentProductInfo, string caRequestId, string commonName, string csr, List<string> dnsNames, string signatureHash, string caCertId)
+		{
+			CheckProductExistence(enrollmentProductInfo.ProductID);
+
+			// Get order ID
+			_logger.LogTrace("Attempting to parse the order ID from the AnyGateway certificate.");
+			uint orderId = 0;
+			try
+			{
+				orderId = uint.Parse(caRequestId.Split('-').First());
+			}
+			catch (Exception e)
+			{
+				throw new Exception($"There was an error parsing the order ID from the certificate: {e.Message}", e);
+			}
+
+			// Duplicate certificate.
+			DuplicateRequest duplicateRequest = new DuplicateRequest(orderId)
+			{
+				Certificate = new CertificateDuplicateRequest
+				{
+					CommonName = commonName,
+					CSR = csr,
+					DnsNames = dnsNames,
+					SignatureHash = signatureHash,
+					CACertID = caCertId
+				}
+			};
+
+			_logger.LogTrace("Attempting to duplicate certificate.");
+			return await ExtractEnrollmentResult(client, client.DuplicateCertificate(duplicateRequest), commonName);
 		}
 
 		/// <summary>
