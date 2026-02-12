@@ -116,6 +116,10 @@ An API Key within your Digicert account that has the necessary permissions to en
     * **UsageDesignation** - Required for secure_email_* types, ignored otherwise. The primary usage of the certificate. Valid values are: signing, key_management, dual_use 
 
 
+## Certificate Duplicates
+
+DigiCert supports the ability to duplicate existing certificate orders. To take advantage of this functionality, in Keyfactor Command, under the enrollment pattern you're using, create an Enrollment Field named 'Duplicate' of type Multiple Choice, and the values 'False', 'True'. When performing a renew operation against that enrollment pattern, set the value to True to tell the gateway to duplicate instead of renew. The field will be ignored on new enrollments.
+
 
 ## License
 
