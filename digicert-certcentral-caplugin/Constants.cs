@@ -25,6 +25,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			public const string LIFETIME = "LifetimeDays";
 			public const string CA_CERT_ID = "CACertId";
 			public const string RENEWAL_WINDOW = "RenewalWindowDays";
+			public const string DUPLICATE = "Duplicate";
 			public const string REVOKE_CERT = "RevokeCertificateOnly";
 			public const string ENABLED = "Enabled";
 			public const string SYNC_CA_FILTER = "SyncCAFilter";
@@ -32,6 +33,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			public const string FILTER_EXPIRED = "FilterExpiredOrders";
 			public const string SYNC_EXPIRATION_DAYS = "SyncExpirationDays";
 			public const string CERT_TYPE = "CertType";
+			public const string INCLUDE_CLIENT_AUTH = "IncludeClientAuthEKU";
 			public const string ENROLL_DIVISION_ID = "EnrollDivisionId";
 			public const string COMMON_NAME_INDICATOR = "CommonNameIndicator";
 			public const string PROFILE_TYPE = "ProfileType";

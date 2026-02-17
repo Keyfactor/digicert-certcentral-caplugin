@@ -106,14 +106,19 @@ An API Key within your Digicert account that has the necessary permissions to en
     * **Organization-Name** - OPTIONAL: For requests that will not have a subject (such as ACME) you can use this field to provide the organization name. Value supplied here will override any CSR values, so do not include this field if you want the organization from the CSR to be used. 
     * **RenewalWindowDays** - OPTIONAL: The number of days from certificate expiration that the gateway should do a renewal rather than a reissue. If not provided, default is 90. 
     * **CertType** - OPTIONAL: The type of cert to enroll for. Valid values are 'ssl' and 'client'. The value provided here must be consistant with the ProductID. If not provided, default is 'ssl'. Ignored for secure_email_* product types. 
+    * **IncludeClientAuthEKU** - OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: This feature is currently planned to be removed by DigiCert in May 2026. 
     * **EnrollDivisionId** - OPTIONAL: The division (container) ID to use for enrollments against this template. 
     * **CommonNameIndicator** - Required for secure_email_sponsor and secure_email_organization products, ignored otherwise. Defines the source of the common name. Valid values are: email_address, given_name_surname, pseudonym, organization_name 
-    * **ProfileType** - Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Default value is strict. 
+    * **ProfileType** - Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Use 'multipurpose' if your cert includes any additional EKUs such as client auth. Default if not provided is dependent on product configuration within Digicert portal. 
     * **FirstName** - Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise. 
     * **LastName** - Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise. 
     * **Pseudonym** - Required for secure_email_* types if CommonNameIndicator is pseudonym, ignored otherwise. 
     * **UsageDesignation** - Required for secure_email_* types, ignored otherwise. The primary usage of the certificate. Valid values are: signing, key_management, dual_use 
 
+
+## Certificate Duplicates
+
+DigiCert supports the ability to duplicate existing certificate orders. To take advantage of this functionality, in Keyfactor Command, under the enrollment pattern you're using, create an Enrollment Field named 'Duplicate' of type Multiple Choice, and the values 'False', 'True'. When performing a renew operation against that enrollment pattern, set the value to True to tell the gateway to duplicate instead of renew. The field will be ignored on new enrollments.
 
 
 ## License

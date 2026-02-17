@@ -17,6 +17,7 @@ using Microsoft.Win32.SafeHandles;
 using Newtonsoft.Json;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Pqc.Crypto.Falcon;
 
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
@@ -298,31 +299,60 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			string priorCertSnString = null;
 			string priorCertReqID = null;
 
-			// Current gateway core leaves it up to the integration to determine if it is a renewal or a reissue
+			if (typeOfCert.Equals("ssl") && Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]))
+			{
+				orderRequest.Certificate.ProfileOption = "server_client_auth_eku";
+				_logger.LogWarning($"{CertCentralConstants.Config.INCLUDE_CLIENT_AUTH}: Ability to include client auth EKU in SSL certs is currently planned to cease in May 2026. Make sure any workflows that depend on this feature are updated before then to avoid interruptions.");
+			}
+
+			bool dupe = false;
+			// Current gateway core leaves it up to the integration to determine if it is a renewal, a reissue, or a duplicate
 			if (enrollmentType == EnrollmentType.RenewOrReissue)
 			{
-				//// Determine if we're going to do a renew or a reissue.
+				//// Determine if we're going to do a renew, reissue, or duplicate.
 				priorCertSnString = productInfo.ProductParameters["PriorCertSN"];
 				_logger.LogTrace($"Attempting to retrieve the certificate with serial number {priorCertSnString}.");
-				var reqId = _certificateDataReader.GetRequestIDBySerialNumber(priorCertSnString).Result;
-				if (string.IsNullOrEmpty(reqId))
+				priorCertReqID = await _certificateDataReader.GetRequestIDBySerialNumber(priorCertSnString);
+				if (string.IsNullOrEmpty(priorCertReqID))
 				{
 					throw new Exception($"No certificate with serial number '{priorCertSnString}' could be found.");
 				}
-				var expDate = _certificateDataReader.GetExpirationDateByRequestId(reqId);
 
-				var renewCutoff = DateTime.Now.AddDays(renewWindow * -1);
-
-				if (expDate > renewCutoff)
+				if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.DUPLICATE))
 				{
-					_logger.LogTrace($"Certificate with serial number {priorCertSnString} is within renewal window");
-					enrollmentType = EnrollmentType.Renew;
+					string dupStr = productInfo.ProductParameters[CertCentralConstants.Config.DUPLICATE].ToString();
+					if (!bool.TryParse(dupStr, out dupe))
+					{
+						_logger.LogError($"Could not parse 'Duplicate' field as true or false. Check configuration. Value: {dupStr}");
+						throw new Exception($"Could not parse 'Duplicate' field as true or false. Check configuration");
+					}
+				}
+				if (!dupe)
+				{
+					var expDate = _certificateDataReader.GetExpirationDateByRequestId(priorCertReqID);
+
+					var renewCutoff = DateTime.Now.AddDays(renewWindow * -1);
+
+					if (expDate > renewCutoff)
+					{
+						_logger.LogTrace($"Certificate with serial number {priorCertSnString} is within renewal window");
+						enrollmentType = EnrollmentType.Renew;
+					}
+					else
+					{
+						_logger.LogTrace($"Certificate with serial number {priorCertSnString} is not within renewal window. Reissuing...");
+						enrollmentType = EnrollmentType.Reissue;
+					}
 				}
 				else
 				{
-					_logger.LogTrace($"Certificate with serial number {priorCertSnString} is not within renewal window. Reissuing...");
-					enrollmentType = EnrollmentType.Reissue;
+					_logger.LogTrace($"'Duplicate' flag set, performing duplication");
 				}
+			}
+
+			if (dupe)
+			{
+				return await Duplicate(client, productInfo, priorCertReqID, commonName, csr, dnsNames, signatureHash, caCertId);
 			}
 
 			// Check if the order has more validity in it (multi-year cert). If so, do a reissue instead of a renew
@@ -588,6 +618,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					DefaultValue = "ssl",
 					Type = "String"
 				},
+				[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH] = new PropertyConfigInfo()
+				{
+					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: This feature is currently planned to be removed by DigiCert in May 2026.",
+					Hidden = false,
+					DefaultValue = false,
+					Type = "Boolean"
+				},
 				[CertCentralConstants.Config.ENROLL_DIVISION_ID] = new PropertyConfigInfo()
 				{
 					Comments = "OPTIONAL: The division (container) ID to use for enrollments against this template.",
@@ -604,9 +641,9 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				},
 				[CertCentralConstants.Config.PROFILE_TYPE] = new PropertyConfigInfo()
 				{
-					Comments = "Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Default value is strict.",
+					Comments = "Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Use 'multipurpose' if your cert includes any additional EKUs such as client auth. Default if not provided is dependent on product configuration within Digicert portal.",
 					Hidden = false,
-					DefaultValue = "strict",
+					DefaultValue = "",
 					Type = "String"
 				},
 				[CertCentralConstants.Config.FIRST_NAME] = new PropertyConfigInfo()
@@ -751,8 +788,14 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 
-			lastSync = lastSync.HasValue ? lastSync.Value.AddHours(-7) : DateTime.MinValue; // DigiCert issue with treating the timezone as mountain time. -7 to accomodate DST
+			// DigiCert issue with treating the timezone as mountain time. -7 hours to accomodate DST
+			// If no last sync, use a 6 day window for the sync range (only relevant for incremental syncs)
+			lastSync = lastSync.HasValue ? lastSync.Value.AddHours(-7) : DateTime.UtcNow.AddDays(-5); 
 			DateTime? utcDate = DateTime.UtcNow.AddDays(1);
+			if ((utcDate.Value - lastSync.Value).Days > 6)
+			{
+				lastSync = DateTime.UtcNow.AddDays(-5);
+			}
 			string lastSyncFormat = FormatSyncDate(lastSync);
 			string todaySyncFormat = FormatSyncDate(utcDate);
 
@@ -1027,7 +1070,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			detailsRequest.ContainerId = null;
 			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID))
 			{
-				string div = (string)connectionInfo[CertCentralConstants.Config.DIVISION_ID];
+				string div = connectionInfo[CertCentralConstants.Config.DIVISION_ID].ToString();
 				if (!string.IsNullOrWhiteSpace(div))
 				{
 					if (int.TryParse($"{div}", out int divId))
@@ -1445,6 +1488,46 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		}
 
 		/// <summary>
+		/// Duplicates a certificate.
+		/// </summary>
+		/// <param name="client">The client used to contact DigiCert.</param>
+		/// <param name="request">The <see cref="OrderRequest"/>.</param>
+		/// <param name="enrollmentProductInfo">Information about the DigiCert product this certificate uses.</param>
+		/// <returns></returns>
+		private async Task<EnrollmentResult> Duplicate(CertCentralClient client, EnrollmentProductInfo enrollmentProductInfo, string caRequestId, string commonName, string csr, List<string> dnsNames, string signatureHash, string caCertId)
+		{
+			CheckProductExistence(enrollmentProductInfo.ProductID);
+
+			// Get order ID
+			_logger.LogTrace("Attempting to parse the order ID from the AnyGateway certificate.");
+			uint orderId = 0;
+			try
+			{
+				orderId = uint.Parse(caRequestId.Split('-').First());
+			}
+			catch (Exception e)
+			{
+				throw new Exception($"There was an error parsing the order ID from the certificate: {e.Message}", e);
+			}
+
+			// Duplicate certificate.
+			DuplicateRequest duplicateRequest = new DuplicateRequest(orderId)
+			{
+				Certificate = new CertificateDuplicateRequest
+				{
+					CommonName = commonName,
+					CSR = csr,
+					DnsNames = dnsNames,
+					SignatureHash = signatureHash,
+					CACertID = caCertId
+				}
+			};
+
+			_logger.LogTrace("Attempting to duplicate certificate.");
+			return await ExtractEnrollmentResult(client, client.DuplicateCertificate(duplicateRequest), commonName);
+		}
+
+		/// <summary>
 		/// Verify that the given product ID is valid
 		/// </summary>
 		/// <param name="productId"></param>
@@ -1548,6 +1631,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			var orderCerts = GetAllCertsForOrder(orderId);
 
 			List<AnyCAPluginCertificate> certList = new List<AnyCAPluginCertificate>();
+			List<string> pemList = new List<string>();
 
 			foreach (var cert in orderCerts)
 			{
@@ -1569,6 +1653,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 							throw new Exception($"Unexpected error downloading certificate {certId} for order {orderId}: {certificateChainResponse.Errors.FirstOrDefault()?.message}");
 						}
 					}
+					//Another check for duplicate PEMs to get arround issue with DigiCert API returning incorrect data sometimes on reissued/duplicate certs
+					if (pemList.Contains(certificate))
+					{
+						_logger.LogWarning($"Found duplicate PEM for ID {caReqId}. Skipping...");
+						continue;
+					}
+					pemList.Add(certificate);
 					var connCert = new AnyCAPluginCertificate
 					{
 						CARequestID = caReqId,
@@ -1684,9 +1775,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				}
 			}
 
+			string profile = null;
 			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.PROFILE_TYPE))
 			{
-				string profile = productInfo.ProductParameters[CertCentralConstants.Config.PROFILE_TYPE].ToString();
+				profile = productInfo.ProductParameters[CertCentralConstants.Config.PROFILE_TYPE].ToString();
 
 				// Only validate if value provided
 				if (!string.IsNullOrEmpty(profile))
@@ -1696,6 +1788,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					{
 						throw new Exception($"Invalid profile type provided. Valid values are: strict, multipurpose");
 					}
+				}
+				else
+				{
+					profile = null;
 				}
 			}
 
@@ -1888,12 +1984,11 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			orderRequest.Certificate.SignatureHash = certType.signatureAlgorithm;
 			orderRequest.Certificate.CACertID = caCertId;
 			orderRequest.SetOrganization(organizationId);
-			string profileType = "strict";
-			if (productInfo.ProductParameters.ContainsKey(Constants.Config.PROFILE_TYPE))
+			//If profile type is not provided, use the default on the digicert product configuration
+			if (!string.IsNullOrEmpty(profile))
 			{
-				profileType = productInfo.ProductParameters[Constants.Config.PROFILE_TYPE];
-			}
-			orderRequest.Certificate.ProfileType = profileType;
+				orderRequest.Certificate.ProfileType = profile;
+			}		
 			orderRequest.Certificate.CommonNameIndicator = cnIndicator;
 			if (productInfo.ProductID.Equals("secure_email_sponsor", StringComparison.OrdinalIgnoreCase))
 			{

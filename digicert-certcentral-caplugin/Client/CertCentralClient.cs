@@ -357,6 +357,28 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 			return reissueResponse;
 		}
 
+		public OrderResponse DuplicateCertificate(DuplicateRequest request)
+		{
+			string jsonRequest = JsonConvert.SerializeObject(request, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+			Logger.LogTrace($"Duplicate request:\n{jsonRequest}");
+
+			CertCentralResponse response = Request(request, jsonRequest);
+
+			OrderResponse duplicateResponse = new OrderResponse();
+			if (!response.Success)
+			{
+				Errors errors = JsonConvert.DeserializeObject<Errors>(response.Response);
+				duplicateResponse.Status = CertCentralBaseResponse.StatusType.ERROR;
+				duplicateResponse.Errors = errors.errors;
+			}
+			else
+			{
+				duplicateResponse = JsonConvert.DeserializeObject<OrderResponse>(response.Response);
+			}
+
+			return duplicateResponse;
+		}
+
 		public RevokeCertificateResponse RevokeCertificate(RevokeCertificateRequest request)
 		{
 			CertCentralResponse response = Request(request, JsonConvert.SerializeObject(request, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
