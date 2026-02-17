@@ -21,3 +21,6 @@
 * Hotfix for incremental sync to default to a 6 day window if no previous incremental sync has run  
 * Workaround for DigiCert API issue where retrieving the PEM data of multiple certificates in the same order can occasionally return duplicate data rather than the correct cert  
 * Remove caching of product ID lookups from DigiCert account  
+
+### 2.2.0  
+* Add support for duplicating certs

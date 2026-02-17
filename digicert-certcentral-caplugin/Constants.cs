@@ -25,6 +25,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			public const string LIFETIME = "LifetimeDays";
 			public const string CA_CERT_ID = "CACertId";
 			public const string RENEWAL_WINDOW = "RenewalWindowDays";
+			public const string DUPLICATE = "Duplicate";
 			public const string REVOKE_CERT = "RevokeCertificateOnly";
 			public const string ENABLED = "Enabled";
 			public const string SYNC_CA_FILTER = "SyncCAFilter";
