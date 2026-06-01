@@ -1178,12 +1178,12 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				else // We should really only get here if there is a misconfiguration (e.g. set up for approval in DigiCert)
 				{
 					_logger.LogWarning($"Order {orderResponse.OrderId} did not return a CertificateId. Manual intervention may be required");
-					if (orderResponse.Requests.Any(x => x.Status == CertCentralConstants.Status.PENDING))
+					if (orderResponse.Requests.Any(x => x.Status == CertCentralConstants.Status.PENDING || x.Status == CertCentralConstants.Status.NEEDS_APPROVAL))
 					{
 						_logger.LogTrace($"Attempting to approve order '{orderResponse.OrderId}'.");
 
 						// Attempt to update the request status.
-						int requestId = int.Parse(orderResponse.Requests.FirstOrDefault(x => x.Status == CertCentralConstants.Status.PENDING).Id);
+						int requestId = int.Parse(orderResponse.Requests.FirstOrDefault(x => x.Status == CertCentralConstants.Status.PENDING || x.Status == CertCentralConstants.Status.NEEDS_APPROVAL).Id);
 						UpdateRequestStatusRequest updateStatusRequest = new UpdateRequestStatusRequest(requestId, CertCentralConstants.Status.APPROVED);
 						UpdateRequestStatusResponse updateStatusResponse = client.UpdateRequestStatus(updateStatusRequest);
 
@@ -1200,7 +1200,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 							}
 							else
 							{
-								status = (int)EndEntityStatus.FAILED;
+								status = (int)EndEntityStatus.EXTERNALVALIDATION;
 								statusMessage = $"Approval of order '{orderResponse.OrderId}' failed. Check the gateway logs for more details.";
 							}
 						}
