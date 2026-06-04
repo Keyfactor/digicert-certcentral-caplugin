@@ -24,3 +24,6 @@
 
 ### 2.2.0  
 * Add support for duplicating certs
+
+### 2.2.1  
+* Properly mark 'needs_approval' status as Pending rather than Failed  
