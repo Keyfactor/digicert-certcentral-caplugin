@@ -5,6 +5,7 @@ using Keyfactor.Extensions.CAPlugin.DigiCert.API;
 using Keyfactor.Extensions.CAPlugin.DigiCert.Client;
 using Keyfactor.Extensions.CAPlugin.DigiCert.Models;
 using Keyfactor.Logging;
+using Keyfactor.PKI;
 using Keyfactor.PKI.Enums;
 using Keyfactor.PKI.Enums.EJBCA;
 
@@ -126,12 +127,15 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			string commonName = null, organization = null, orgUnit = null;
 			try
 			{
-				subjectParsed = new X509Name(subject);
+				subjectParsed = new X509Name(true, PKIConstants.X509.OIDLookup, subject);
 				commonName = subjectParsed.GetValueList(X509Name.CN).Cast<string>().LastOrDefault();
 				organization = subjectParsed.GetValueList(X509Name.O).Cast<string>().LastOrDefault();
 				orgUnit = subjectParsed.GetValueList(X509Name.OU).Cast<string>().LastOrDefault();
 			}
-			catch (Exception) { }
+			catch (Exception exc)
+			{
+				_logger.LogInformation($"Error while parsing subject. This might be expected. Error message: {exc.Message}");
+			}
 
 			if (commonName == null)
 			{
@@ -295,10 +299,23 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			string priorCertSnString = null;
 			string priorCertReqID = null;
 
-			if (typeOfCert.Equals("ssl") && Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]))
+			if (typeOfCert.Equals("ssl"))
 			{
-				orderRequest.Certificate.ProfileOption = "server_client_auth_eku";
-				_logger.LogWarning($"{CertCentralConstants.Config.INCLUDE_CLIENT_AUTH}: Ability to include client auth EKU in SSL certs is currently planned to cease in May 2026. Make sure any workflows that depend on this feature are updated before then to avoid interruptions.");
+				bool clientAuth = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]);
+				bool kdc = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_KDC]);
+				if (clientAuth && kdc)
+				{
+					throw new Exception($"Cannot enroll for cert with both Client Auth and KDC/SmartCardLogon EKU set to 'true'");
+				}
+				if (clientAuth)
+				{
+					orderRequest.Certificate.ProfileOption = "server_client_auth_eku";
+					_logger.LogWarning($"{CertCentralConstants.Config.INCLUDE_CLIENT_AUTH}: Ability to include client auth EKU in SSL certs is currently planned to cease in March 2027. Make sure any workflows that depend on this feature are updated before then to avoid interruptions.");
+				}
+				else if (kdc)
+				{
+					orderRequest.Certificate.ProfileOption = "kdc_smart_card";
+				}
 			}
 
 			bool dupe = false;
@@ -616,7 +633,14 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				},
 				[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH] = new PropertyConfigInfo()
 				{
-					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: This feature is currently planned to be removed by DigiCert in May 2026.",
+					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: This feature is currently planned to be removed by DigiCert in March 2027.",
+					Hidden = false,
+					DefaultValue = false,
+					Type = "Boolean"
+				},
+				[CertCentralConstants.Config.INCLUDE_KDC] = new PropertyConfigInfo()
+				{
+					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the KDC/SmartCardLogon EKU added to the request.",
 					Hidden = false,
 					DefaultValue = false,
 					Type = "Boolean"
@@ -1064,9 +1088,9 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			CertificateTypeDetailsRequest detailsRequest = new CertificateTypeDetailsRequest(product.NameId);
 
 			detailsRequest.ContainerId = null;
-			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID))
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.ENROLL_DIVISION_ID))
 			{
-				string div = connectionInfo[CertCentralConstants.Config.DIVISION_ID].ToString();
+				string div = productInfo.ProductParameters[CertCentralConstants.Config.ENROLL_DIVISION_ID].ToString();
 				if (!string.IsNullOrWhiteSpace(div))
 				{
 					if (int.TryParse($"{div}", out int divId))
@@ -1088,15 +1112,30 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			if (!Constants.ProductTypes.SMIME_CERT.Contains(productInfo.ProductID, StringComparer.OrdinalIgnoreCase))
 			{
-				if (connectionInfo.ContainsKey(CertCentralConstants.Config.CERT_TYPE))
+				if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.CERT_TYPE))
 				{
-					var typeOfCert = (string)connectionInfo[CertCentralConstants.Config.CERT_TYPE];
+					var typeOfCert = (string)productInfo.ProductParameters[CertCentralConstants.Config.CERT_TYPE];
 					if (!(typeOfCert.Equals("ssl") || typeOfCert.Equals("client")))
 					{
 						throw new AnyCAValidationException("Invalid Cert Type specified. Valid options are 'ssl' or 'client'");
 					}
 				}
 			}
+
+			bool clientAuth = false, kdc = false;
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.INCLUDE_CLIENT_AUTH))
+			{
+				clientAuth = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]);
+			}
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.INCLUDE_KDC))
+			{
+				kdc = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_KDC]);
+			}
+			if (clientAuth && kdc)
+			{
+				throw new AnyCAValidationException($"Unable to use both {CertCentralConstants.Config.INCLUDE_CLIENT_AUTH} and {CertCentralConstants.Config.INCLUDE_KDC} in the same certificate.");
+			}
+
 			_logger.MethodExit(LogLevel.Trace);
 		}
 
