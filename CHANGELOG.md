@@ -27,3 +27,6 @@
 
 ### 2.2.1  
 * Properly mark 'needs_approval' status as Pending rather than Failed  
+
+### 2.3.0
+* Add configuration flag to support adding KDC/SmartCardLogon EKU to ssl cert requests  
