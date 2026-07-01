@@ -39,6 +39,10 @@
                     "description": "If you list one or more Divison IDs (also known as Container IDs) here (comma-separated), the sync process will filter records to only return orders from those divisions. If you want to sync all divisions, leave this field empty. Note that this has no relationship to the value of the DivisionId config field."
                 },
                 {
+                    "name": "SyncProductFilter",
+                    "description": "If you list one or more Product IDs here (comma-separated), the sync process will filter records to only return orders of those product types. Leave empty to sync all products."
+                },
+                {
                     "name": "FilterExpiredOrders",
                     "description": "If set to 'true', syncing will apply a filter to not return orders that are expired for longer than specified in SyncExpirationDays."
                 },
@@ -74,11 +78,15 @@
                 },
                 {
                     "name": "IncludeClientAuthEKU",
-                    "description": "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: This feature is currently planned to be removed by DigiCert in March 2027."
+                    "description": "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment. NOTE: This feature is currently planned to be removed by DigiCert in March 2027."
                 },
                 {
                     "name": "IncludeKDCSmartCardLogonEKU",
-                    "description": "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the KDC/SmartCardLogon EKU added to the request."
+                    "description": "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the KDC/SmartCardLogon EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment."
+                },
+                {
+                    "name": "IncludeIntelvProEKU",
+                    "description": "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Intel vPro EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment."
                 },
                 {
                     "name": "EnrollDivisionId",
