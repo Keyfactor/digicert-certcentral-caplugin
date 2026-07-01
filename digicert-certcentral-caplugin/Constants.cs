@@ -36,6 +36,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			public const string CERT_TYPE = "CertType";
 			public const string INCLUDE_CLIENT_AUTH = "IncludeClientAuthEKU";
 			public const string INCLUDE_KDC = "IncludeKDCSmartCardLogonEKU";
+			public const string INCLUDE_INTEL = "IncludeIntelvProEKU";
 			public const string ENROLL_DIVISION_ID = "EnrollDivisionId";
 			public const string COMMON_NAME_INDICATOR = "CommonNameIndicator";
 			public const string PROFILE_TYPE = "ProfileType";

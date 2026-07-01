@@ -303,9 +303,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			{
 				bool clientAuth = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]);
 				bool kdc = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_KDC]);
-				if (clientAuth && kdc)
+				bool intel = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_INTEL]);
+				if ((clientAuth ? 1 : 0) + (kdc ? 1 : 0) + (intel ? 1 : 0) >= 2) //If more than one EKU option is selected
 				{
-					throw new Exception($"Cannot enroll for cert with both Client Auth and KDC/SmartCardLogon EKU set to 'true'");
+					throw new Exception($"Cannot enroll for cert with more than one EKU option selected");
 				}
 				if (clientAuth)
 				{
@@ -315,6 +316,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				else if (kdc)
 				{
 					orderRequest.Certificate.ProfileOption = "kdc_smart_card";
+				}
+				else if (intel)
+				{
+					orderRequest.Certificate.ProfileOption = "intel_vpro_eku";
 				}
 			}
 
@@ -640,14 +645,21 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				},
 				[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH] = new PropertyConfigInfo()
 				{
-					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: This feature is currently planned to be removed by DigiCert in March 2027.",
+					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment. NOTE: This feature is currently planned to be removed by DigiCert in March 2027.",
 					Hidden = false,
 					DefaultValue = false,
 					Type = "Boolean"
 				},
 				[CertCentralConstants.Config.INCLUDE_KDC] = new PropertyConfigInfo()
 				{
-					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the KDC/SmartCardLogon EKU added to the request.",
+					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the KDC/SmartCardLogon EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment.",
+					Hidden = false,
+					DefaultValue = false,
+					Type = "Boolean"
+				},
+				[CertCentralConstants.Config.INCLUDE_INTEL] = new PropertyConfigInfo()
+				{
+					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Intel vPro EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment.",
 					Hidden = false,
 					DefaultValue = false,
 					Type = "Boolean"
