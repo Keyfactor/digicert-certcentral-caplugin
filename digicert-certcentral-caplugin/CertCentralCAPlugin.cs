@@ -476,6 +476,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					DefaultValue = "",
 					Type = "String"
 				},
+				[CertCentralConstants.Config.SYNC_PROD_FILTER] = new PropertyConfigInfo()
+				{
+					Comments = "If you list one or more Product IDs here (comma-separated), the sync process will filter records to only return orders of those product types. Leave empty to sync all products.",
+					Hidden = false,
+					DefaultValue = "",
+					Type = "String"
+				},
 				[CertCentralConstants.Config.FILTER_EXPIRED] = new PropertyConfigInfo()
 				{
 					Comments = "If set to 'true', syncing will apply a filter to not return orders that are expired for longer than specified in SyncExpirationDays.",
@@ -834,11 +841,16 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			caList.ForEach(c => c.ToUpper());
 
-			List<string> divFilters = null;
+			List<string> divFilters = new List<string>();
 			if (!string.IsNullOrEmpty(_config.SyncDivisionFilter))
 			{
-				divFilters = new List<string>();
 				divFilters.AddRange(_config.SyncDivisionFilter.Split(','));
+			}
+			List<string> productFilters = new List<string>();
+			if (!string.IsNullOrEmpty(_config.SyncProductFilter))
+			{
+				_logger.LogTrace($"Sync Products: {_config.SyncProductFilter}");
+				productFilters = _config.SyncProducts;
 			}
 
 			if (fullSync)
@@ -857,37 +869,20 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				long starttime = time;
 				_logger.LogDebug($"SYNC: Starting sync at time {time}");
 				List<Order> allOrders = new List<Order>();
-				if (divFilters != null)
+
+				ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, divFilters, productFilters);
+				if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 				{
-					foreach (string div in divFilters)
-					{
-						ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, div);
-						if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
-						{
-							Error error = ordersResponse.Errors[0];
-							_logger.LogError("Error in listing all certificate orders");
-							throw new Exception($"DigiCert CertCentral web service returned {error.code} - {error.message} when retrieving all rows");
-						}
-						else
-						{
-							allOrders.AddRange(ordersResponse.orders);
-						}
-					}
+					Error error = ordersResponse.Errors[0];
+					_logger.LogError("Error in listing all certificate orders");
+					throw new Exception($"DigiCert CertCentral web service returned {error.code} - {error.message} when retrieving all rows");
 				}
 				else
 				{
-					ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, null);
-					if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
-					{
-						Error error = ordersResponse.Errors[0];
-						_logger.LogError("Error in listing all certificate orders");
-						throw new Exception($"DigiCert CertCentral web service returned {error.code} - {error.message} when retrieving all rows");
-					}
-					else
-					{
-						allOrders.AddRange(ordersResponse.orders);
-					}
+					allOrders.AddRange(ordersResponse.orders);
 				}
+
+
 				_logger.LogDebug($"SYNC: Found {allOrders.Count} records");
 				foreach (var orderDetails in allOrders)
 				{
@@ -897,7 +892,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 						cancelToken.ThrowIfCancellationRequested();
 						string caReqId = orderDetails.id + "-" + orderDetails.certificate.id;
 						_logger.LogDebug($"SYNC: Retrieving certs for order id {orderDetails.id}");
-						orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters);
+						orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters, productFilters);
 						if (orderCerts == null || orderCerts.Count == 0)
 						{
 							continue;
@@ -939,7 +934,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 						{
 							cancelToken.ThrowIfCancellationRequested();
 							string caReqId = order.order_id + "-" + order.certificate_id;
-							orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters);
+							orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters, productFilters);
 							if (orderCerts == null || orderCerts.Count > 0)
 							{
 								continue;
@@ -1639,7 +1634,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		/// </summary>
 		/// <param name="caRequestID"></param>
 		/// <returns></returns>
-		private List<AnyCAPluginCertificate> GetAllConnectorCertsForOrder(string caRequestID, List<string> caFilterIds, List<string> divIds)
+		private List<AnyCAPluginCertificate> GetAllConnectorCertsForOrder(string caRequestID, List<string> caFilterIds, List<string> divIds, List<string> productIds)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 			// Split ca request id into order and cert id
@@ -1661,6 +1656,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			{
 				_logger.LogTrace($"Found order ID {orderId} that does not match Division filter. Division ID: {orderResponse.container.Id.ToString()} Skipping...");
 				return null;
+			}
+			if (productIds != null && productIds.Count > 0 && !productIds.Contains(orderResponse.product.name_id.ToString()))
+			{
+				_logger.LogTrace($"Found order ID {orderId} that does not match Product filter. Product ID: {orderResponse.product.name_id.ToString()} Skipping...");
 			}
 
 			var orderCerts = GetAllCertsForOrder(orderId);
