@@ -2074,6 +2074,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			if (enrollmentType == EnrollmentType.Renew)
 			{
+				priorCertSnString = productInfo.ProductParameters["PriorCertSN"];
 				priorCertReqID = _certificateDataReader.GetRequestIDBySerialNumber(priorCertSnString).Result;
 				if (string.IsNullOrEmpty(priorCertReqID))
 				{
