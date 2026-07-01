@@ -30,6 +30,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			public const string ENABLED = "Enabled";
 			public const string SYNC_CA_FILTER = "SyncCAFilter";
 			public const string SYNC_DIV_FILTER = "SyncDivisionFilter";
+			public const string SYNC_PROD_FILTER = "SyncProductFilter";
 			public const string FILTER_EXPIRED = "FilterExpiredOrders";
 			public const string SYNC_EXPIRATION_DAYS = "SyncExpirationDays";
 			public const string CERT_TYPE = "CertType";
