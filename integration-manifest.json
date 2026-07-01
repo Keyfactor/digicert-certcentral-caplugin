@@ -78,11 +78,15 @@
                 },
                 {
                     "name": "IncludeClientAuthEKU",
-                    "description": "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: This feature is currently planned to be removed by DigiCert in March 2027."
+                    "description": "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment. NOTE: This feature is currently planned to be removed by DigiCert in March 2027."
                 },
                 {
                     "name": "IncludeKDCSmartCardLogonEKU",
-                    "description": "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the KDC/SmartCardLogon EKU added to the request."
+                    "description": "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the KDC/SmartCardLogon EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment."
+                },
+                {
+                    "name": "IncludeIntelvProEKU",
+                    "description": "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Intel vPro EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment."
                 },
                 {
                     "name": "EnrollDivisionId",
