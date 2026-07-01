@@ -1129,7 +1129,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				}
 			}
 
-			bool clientAuth = false, kdc = false;
+			bool clientAuth = false, kdc = false, intel = false;
 			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.INCLUDE_CLIENT_AUTH))
 			{
 				clientAuth = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]);
@@ -1138,9 +1138,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			{
 				kdc = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_KDC]);
 			}
-			if (clientAuth && kdc)
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.INCLUDE_INTEL))
 			{
-				throw new AnyCAValidationException($"Unable to use both {CertCentralConstants.Config.INCLUDE_CLIENT_AUTH} and {CertCentralConstants.Config.INCLUDE_KDC} in the same certificate.");
+				intel = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_INTEL]);
+			}
+			if ((clientAuth ? 1 : 0) + (kdc ? 1 : 0) + (intel ? 1 : 0) >= 2) // If more than one EKU option is selected
+			{
+				throw new AnyCAValidationException($"Unable to use more than one of: {CertCentralConstants.Config.INCLUDE_CLIENT_AUTH}, {CertCentralConstants.Config.INCLUDE_KDC}, or {CertCentralConstants.Config.INCLUDE_INTEL} in the same certificate.");
 			}
 
 			_logger.MethodExit(LogLevel.Trace);
