@@ -1094,10 +1094,11 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			// Get product ID details.
 			CertificateTypeDetailsRequest detailsRequest = new CertificateTypeDetailsRequest(product.NameId);
 
+			// For pulling product ID details, we use the Connection-level Division ID rather than the enrollment-level one.
 			detailsRequest.ContainerId = null;
-			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.ENROLL_DIVISION_ID))
+			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID))
 			{
-				string div = productInfo.ProductParameters[CertCentralConstants.Config.ENROLL_DIVISION_ID].ToString();
+				string div = connectionInfo[CertCentralConstants.Config.DIVISION_ID].ToString();
 				if (!string.IsNullOrWhiteSpace(div))
 				{
 					if (int.TryParse($"{div}", out int divId))
