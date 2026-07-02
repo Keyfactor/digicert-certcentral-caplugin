@@ -30,3 +30,9 @@
 
 ### 2.3.0
 * Add configuration flag to support adding KDC/SmartCardLogon EKU to ssl cert requests  
+
+### 2.4.0  
+* Add configuration flag to support Intel vPro EKU on ssl cert requests  
+* Add ability to filter sync by product ID  
+* Bug fix for SMIME cert renewal  
+* Bug fix for template validation
