@@ -1096,7 +1096,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			// For pulling product ID details, we use the Connection-level Division ID rather than the enrollment-level one.
 			detailsRequest.ContainerId = null;
-			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID))
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.ENROLL_DIVISION_ID))
 			{
 				string div = connectionInfo[CertCentralConstants.Config.DIVISION_ID].ToString();
 				if (!string.IsNullOrWhiteSpace(div))
