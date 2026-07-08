@@ -29,7 +29,8 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 
 		public bool ignoreExpired { get; set; }
 		public int expiredWindow { get; set; } = 0;
-		public string divID { get; set; } = string.Empty;
+		public List<string> divIDs { get; set; } = new List<string>();
+		public List<string> productIDs { get; set; } = new List<string>();
 
 		public new string BuildParameters()
 		{
@@ -38,9 +39,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.API
 			sbParamters.Append("limit=").Append(this.limit.ToString());
 			sbParamters.Append("&offset=").Append(HttpUtility.UrlEncode(this.offset.ToString()));
 
-			if (!string.IsNullOrEmpty(divID))
+			foreach (string divID in this.divIDs)
 			{
-				sbParamters.Append("&filters[container_id]=").Append(this.divID);
+				sbParamters.Append("&filters[container_id]=").Append(divID);
+			}
+			foreach (string productID in productIDs)
+			{
+				sbParamters.Append("&filters[product_name_id]=").Append(productID);
 			}
 			if (ignoreExpired)
 			{

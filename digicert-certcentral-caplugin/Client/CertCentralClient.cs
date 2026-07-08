@@ -523,7 +523,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 			return dlCertificateRequestResponse;
 		}
 
-		public ListCertificateOrdersResponse ListAllCertificateOrders(bool ignoreExpired = false, int expiredWindow = 0, string divId = "")
+		public ListCertificateOrdersResponse ListAllCertificateOrders(bool ignoreExpired, int expiredWindow, List<string> divIds, List<string> productIds)
 		{
 			int batch = 1000;
 			ListCertificateOrdersResponse totalResponse = new ListCertificateOrdersResponse();
@@ -536,7 +536,8 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 					offset = totalResponse.orders.Count,
 					ignoreExpired = ignoreExpired,
 					expiredWindow = expiredWindow,
-					divID = divId
+					divIDs = divIds,
+					productIDs = productIds
 				};
 
 				CertCentralResponse response = Request(request, request.BuildParameters());
