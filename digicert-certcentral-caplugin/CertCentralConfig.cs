@@ -33,6 +33,21 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				}	
 			}
 		}
+		public string SyncProductFilter { get; set; }
+		public List<string> SyncProducts
+		{
+			get
+			{
+				if (!string.IsNullOrEmpty(SyncProductFilter))
+				{
+					return SyncProductFilter.Split(",").ToList();
+				}
+				else
+				{
+					return new List<string>();
+				}
+			}
+		}
 
 		public bool? FilterExpiredOrders { get; set; }
 		public int? SyncExpirationDays { get; set; }

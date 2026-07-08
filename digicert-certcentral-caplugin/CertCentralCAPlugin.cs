@@ -303,9 +303,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			{
 				bool clientAuth = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]);
 				bool kdc = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_KDC]);
-				if (clientAuth && kdc)
+				bool intel = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_INTEL]);
+				if ((clientAuth ? 1 : 0) + (kdc ? 1 : 0) + (intel ? 1 : 0) >= 2) //If more than one EKU option is selected
 				{
-					throw new Exception($"Cannot enroll for cert with both Client Auth and KDC/SmartCardLogon EKU set to 'true'");
+					throw new Exception($"Cannot enroll for cert with more than one EKU option selected");
 				}
 				if (clientAuth)
 				{
@@ -315,6 +316,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				else if (kdc)
 				{
 					orderRequest.Certificate.ProfileOption = "kdc_smart_card";
+				}
+				else if (intel)
+				{
+					orderRequest.Certificate.ProfileOption = "intel_vpro_eku";
 				}
 			}
 
@@ -476,6 +481,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					DefaultValue = "",
 					Type = "String"
 				},
+				[CertCentralConstants.Config.SYNC_PROD_FILTER] = new PropertyConfigInfo()
+				{
+					Comments = "If you list one or more Product IDs here (comma-separated), the sync process will filter records to only return orders of those product types. Leave empty to sync all products.",
+					Hidden = false,
+					DefaultValue = "",
+					Type = "String"
+				},
 				[CertCentralConstants.Config.FILTER_EXPIRED] = new PropertyConfigInfo()
 				{
 					Comments = "If set to 'true', syncing will apply a filter to not return orders that are expired for longer than specified in SyncExpirationDays.",
@@ -633,14 +645,21 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				},
 				[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH] = new PropertyConfigInfo()
 				{
-					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: This feature is currently planned to be removed by DigiCert in March 2027.",
+					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment. NOTE: This feature is currently planned to be removed by DigiCert in March 2027.",
 					Hidden = false,
 					DefaultValue = false,
 					Type = "Boolean"
 				},
 				[CertCentralConstants.Config.INCLUDE_KDC] = new PropertyConfigInfo()
 				{
-					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the KDC/SmartCardLogon EKU added to the request.",
+					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the KDC/SmartCardLogon EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment.",
+					Hidden = false,
+					DefaultValue = false,
+					Type = "Boolean"
+				},
+				[CertCentralConstants.Config.INCLUDE_INTEL] = new PropertyConfigInfo()
+				{
+					Comments = "OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Intel vPro EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment.",
 					Hidden = false,
 					DefaultValue = false,
 					Type = "Boolean"
@@ -834,11 +853,16 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			caList.ForEach(c => c.ToUpper());
 
-			List<string> divFilters = null;
+			List<string> divFilters = new List<string>();
 			if (!string.IsNullOrEmpty(_config.SyncDivisionFilter))
 			{
-				divFilters = new List<string>();
 				divFilters.AddRange(_config.SyncDivisionFilter.Split(','));
+			}
+			List<string> productFilters = new List<string>();
+			if (!string.IsNullOrEmpty(_config.SyncProductFilter))
+			{
+				_logger.LogTrace($"Sync Products: {_config.SyncProductFilter}");
+				productFilters = _config.SyncProducts;
 			}
 
 			if (fullSync)
@@ -857,37 +881,20 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				long starttime = time;
 				_logger.LogDebug($"SYNC: Starting sync at time {time}");
 				List<Order> allOrders = new List<Order>();
-				if (divFilters != null)
+
+				ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, divFilters, productFilters);
+				if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 				{
-					foreach (string div in divFilters)
-					{
-						ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, div);
-						if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
-						{
-							Error error = ordersResponse.Errors[0];
-							_logger.LogError("Error in listing all certificate orders");
-							throw new Exception($"DigiCert CertCentral web service returned {error.code} - {error.message} when retrieving all rows");
-						}
-						else
-						{
-							allOrders.AddRange(ordersResponse.orders);
-						}
-					}
+					Error error = ordersResponse.Errors[0];
+					_logger.LogError("Error in listing all certificate orders");
+					throw new Exception($"DigiCert CertCentral web service returned {error.code} - {error.message} when retrieving all rows");
 				}
 				else
 				{
-					ListCertificateOrdersResponse ordersResponse = client.ListAllCertificateOrders(ignoreExpired, expiredWindow, null);
-					if (ordersResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
-					{
-						Error error = ordersResponse.Errors[0];
-						_logger.LogError("Error in listing all certificate orders");
-						throw new Exception($"DigiCert CertCentral web service returned {error.code} - {error.message} when retrieving all rows");
-					}
-					else
-					{
-						allOrders.AddRange(ordersResponse.orders);
-					}
+					allOrders.AddRange(ordersResponse.orders);
 				}
+
+
 				_logger.LogDebug($"SYNC: Found {allOrders.Count} records");
 				foreach (var orderDetails in allOrders)
 				{
@@ -897,7 +904,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 						cancelToken.ThrowIfCancellationRequested();
 						string caReqId = orderDetails.id + "-" + orderDetails.certificate.id;
 						_logger.LogDebug($"SYNC: Retrieving certs for order id {orderDetails.id}");
-						orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters);
+						orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters, productFilters);
 						if (orderCerts == null || orderCerts.Count == 0)
 						{
 							continue;
@@ -939,7 +946,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 						{
 							cancelToken.ThrowIfCancellationRequested();
 							string caReqId = order.order_id + "-" + order.certificate_id;
-							orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters);
+							orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters, productFilters);
 							if (orderCerts == null || orderCerts.Count > 0)
 							{
 								continue;
@@ -1087,10 +1094,11 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			// Get product ID details.
 			CertificateTypeDetailsRequest detailsRequest = new CertificateTypeDetailsRequest(product.NameId);
 
+			// For pulling product ID details, we use the Connection-level Division ID rather than the enrollment-level one.
 			detailsRequest.ContainerId = null;
-			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.ENROLL_DIVISION_ID))
+			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID))
 			{
-				string div = productInfo.ProductParameters[CertCentralConstants.Config.ENROLL_DIVISION_ID].ToString();
+				string div = connectionInfo[CertCentralConstants.Config.DIVISION_ID].ToString();
 				if (!string.IsNullOrWhiteSpace(div))
 				{
 					if (int.TryParse($"{div}", out int divId))
@@ -1122,7 +1130,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				}
 			}
 
-			bool clientAuth = false, kdc = false;
+			bool clientAuth = false, kdc = false, intel = false;
 			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.INCLUDE_CLIENT_AUTH))
 			{
 				clientAuth = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]);
@@ -1131,9 +1139,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			{
 				kdc = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_KDC]);
 			}
-			if (clientAuth && kdc)
+			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.INCLUDE_INTEL))
 			{
-				throw new AnyCAValidationException($"Unable to use both {CertCentralConstants.Config.INCLUDE_CLIENT_AUTH} and {CertCentralConstants.Config.INCLUDE_KDC} in the same certificate.");
+				intel = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_INTEL]);
+			}
+			if ((clientAuth ? 1 : 0) + (kdc ? 1 : 0) + (intel ? 1 : 0) >= 2) // If more than one EKU option is selected
+			{
+				throw new AnyCAValidationException($"Unable to use more than one of: {CertCentralConstants.Config.INCLUDE_CLIENT_AUTH}, {CertCentralConstants.Config.INCLUDE_KDC}, or {CertCentralConstants.Config.INCLUDE_INTEL} in the same certificate.");
 			}
 
 			_logger.MethodExit(LogLevel.Trace);
@@ -1639,7 +1651,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		/// </summary>
 		/// <param name="caRequestID"></param>
 		/// <returns></returns>
-		private List<AnyCAPluginCertificate> GetAllConnectorCertsForOrder(string caRequestID, List<string> caFilterIds, List<string> divIds)
+		private List<AnyCAPluginCertificate> GetAllConnectorCertsForOrder(string caRequestID, List<string> caFilterIds, List<string> divIds, List<string> productIds)
 		{
 			_logger.MethodEntry(LogLevel.Trace);
 			// Split ca request id into order and cert id
@@ -1661,6 +1673,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			{
 				_logger.LogTrace($"Found order ID {orderId} that does not match Division filter. Division ID: {orderResponse.container.Id.ToString()} Skipping...");
 				return null;
+			}
+			if (productIds != null && productIds.Count > 0 && !productIds.Contains(orderResponse.product.name_id.ToString()))
+			{
+				_logger.LogTrace($"Found order ID {orderId} that does not match Product filter. Product ID: {orderResponse.product.name_id.ToString()} Skipping...");
 			}
 
 			var orderCerts = GetAllCertsForOrder(orderId);
@@ -2063,6 +2079,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			if (enrollmentType == EnrollmentType.Renew)
 			{
+				priorCertSnString = productInfo.ProductParameters["PriorCertSN"];
 				priorCertReqID = _certificateDataReader.GetRequestIDBySerialNumber(priorCertSnString).Result;
 				if (string.IsNullOrEmpty(priorCertReqID))
 				{
