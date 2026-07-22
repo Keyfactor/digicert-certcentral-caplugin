@@ -35,4 +35,7 @@
 * Add configuration flag to support Intel vPro EKU on ssl cert requests  
 * Add ability to filter sync by product ID  
 * Bug fix for SMIME cert renewal  
-* Bug fix for template validation
+* Bug fix for template validation  
+
+### 2.4.1  
+* Fix for missing parameter errors  

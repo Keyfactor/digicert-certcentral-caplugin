@@ -301,9 +301,31 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			if (typeOfCert.Equals("ssl"))
 			{
-				bool clientAuth = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_CLIENT_AUTH]);
-				bool kdc = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_KDC]);
-				bool intel = Convert.ToBoolean(productInfo.ProductParameters[CertCentralConstants.Config.INCLUDE_INTEL]);
+				bool clientAuth = false, kdc = false, intel = false;
+				if (productInfo.ProductParameters.TryGetValue(CertCentralConstants.Config.INCLUDE_CLIENT_AUTH, out string clientAuthValue))
+				{
+					if (!bool.TryParse(clientAuthValue, out clientAuth))
+					{
+						_logger.LogError($"Could not parse 'IncludeClientAuthEKU' field as true or false. Check configuration. Value: {clientAuthValue}");
+						throw new Exception($"Could not parse 'IncludeClientAuthEKU' field as true or false. Check configuration");
+					}
+				}
+				if (productInfo.ProductParameters.TryGetValue(CertCentralConstants.Config.INCLUDE_KDC, out string kdcValue))
+				{
+					if (!bool.TryParse(kdcValue, out kdc))
+					{
+						_logger.LogError($"Could not parse 'IncludeKDCSmartCardLogonEKU' field as true or false. Check configuration. Value: {kdcValue}");
+						throw new Exception($"Could not parse 'IncludeKDCSmartCardLogonEKU' field as true or false. Check configuration");
+					}
+				}
+				if (productInfo.ProductParameters.TryGetValue(CertCentralConstants.Config.INCLUDE_INTEL, out string intelValue))
+				{
+					if (!bool.TryParse(intelValue, out intel))
+					{
+						_logger.LogError($"Could not parse 'IncludeIntelvProEKU' field as true or false. Check configuration. Value: {intelValue}");
+						throw new Exception($"Could not parse 'IncludeIntelvProEKU' field as true or false. Check configuration");
+					}
+				}
 				if ((clientAuth ? 1 : 0) + (kdc ? 1 : 0) + (intel ? 1 : 0) >= 2) //If more than one EKU option is selected
 				{
 					throw new Exception($"Cannot enroll for cert with more than one EKU option selected");
@@ -1096,7 +1118,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			// For pulling product ID details, we use the Connection-level Division ID rather than the enrollment-level one.
 			detailsRequest.ContainerId = null;
-			if (productInfo.ProductParameters.ContainsKey(CertCentralConstants.Config.ENROLL_DIVISION_ID))
+			if (connectionInfo.ContainsKey(CertCentralConstants.Config.DIVISION_ID))
 			{
 				string div = connectionInfo[CertCentralConstants.Config.DIVISION_ID].ToString();
 				if (!string.IsNullOrWhiteSpace(div))
