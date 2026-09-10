@@ -585,7 +585,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			CertCentralClient client = CertCentralClientUtilities.BuildCertCentralClient(_config);
 			ViewCertificateOrderResponse orderResponse = client.ViewCertificateOrder(new ViewCertificateOrderRequest((uint)orderId));
 
-			var orderCerts = GetAllCertsForOrder(orderId);
+			var orderCerts = GetAllCertsForOrder(orderId, orderResponse);
 
 			StatusOrder certToCheck = orderCerts.Where(c => c.certificate_id == certIdInt).First();
 
@@ -1757,10 +1757,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		/// <param name="orderId"></param>
 		/// <returns></returns>
 		/// <exception cref="COMException"></exception>
-		private List<StatusOrder> GetAllCertsForOrder(int orderId)
+		private List<StatusOrder> GetAllCertsForOrder(int orderId, ViewCertificateOrderResponse alreadyFetchedOrder = null)
 		{
 			CertCentralClient client = CertCentralClientUtilities.BuildCertCentralClient(_config);
-			ViewCertificateOrderResponse orderResponse = client.ViewCertificateOrder(new ViewCertificateOrderRequest((uint)orderId));
+			// Reuse the caller's response when it has one: GetAllConnectorCertsForOrder has just
+			// fetched this same order.
+			ViewCertificateOrderResponse orderResponse = alreadyFetchedOrder
+				?? client.ViewCertificateOrder(new ViewCertificateOrderRequest((uint)orderId));
 			if (orderResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 			{
 				string errorMessage = String.Format("Request {0} was not found in CertCentral database or is not valid", orderId);
