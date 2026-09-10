@@ -161,6 +161,23 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 			return oCertCertResponse;
 		}
 
+		public DVCheckDCVResponse CheckDCV(DVCheckDCVRequest request)
+		{
+			CertCentralResponse response = Request(request);
+
+			DVCheckDCVResponse checkDCVResponse = new DVCheckDCVResponse();
+			if (!response.Success)
+			{
+				Errors errors = JsonConvert.DeserializeObject<Errors>(response.Response);
+				checkDCVResponse.Status = CertCentralBaseResponse.StatusType.ERROR;
+				checkDCVResponse.Errors = errors.errors;
+			}
+			else
+			{
+				checkDCVResponse = JsonConvert.DeserializeObject<DVCheckDCVResponse>(response.Response);
+			}
+			return checkDCVResponse;
+		}
 		public ListOrganizationsResponse ListOrganizations(ListOrganizationsRequest request)
 		{
 			CertCentralResponse response = Request(request, request.BuildParameters());
