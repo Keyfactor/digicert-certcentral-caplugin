@@ -873,7 +873,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			_logger.LogTrace($"Sync CAs: {syncCAstring}");
 			List<string> caList = _config.SyncCAs;
 
-			caList.ForEach(c => c.ToUpper());
+			caList = caList.Select(c => c?.Trim().ToUpper()).Where(c => !string.IsNullOrEmpty(c)).ToList();
 
 			List<string> divFilters = new List<string>();
 			if (!string.IsNullOrEmpty(_config.SyncDivisionFilter))
@@ -1699,6 +1699,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			if (productIds != null && productIds.Count > 0 && !productIds.Contains(orderResponse.product.name_id.ToString()))
 			{
 				_logger.LogTrace($"Found order ID {orderId} that does not match Product filter. Product ID: {orderResponse.product.name_id.ToString()} Skipping...");
+				return null;
 			}
 
 			var orderCerts = GetAllCertsForOrder(orderId);
