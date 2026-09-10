@@ -20,6 +20,7 @@ using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Pqc.Crypto.Falcon;
 
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 
@@ -32,14 +33,15 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 	public class CertCentralCAPlugin : IAnyCAPlugin
 	{
 		private CertCentralConfig _config;
-		private readonly ILogger _logger;
+		private readonly ILogger _logger = LogHandler.GetClassLogger<CertCentralCAPlugin>();
 		private ICertificateDataReader _certificateDataReader;
+		private readonly IDomainValidatorFactory _domainValidatorFactory;
 
 		private Dictionary<int, string> DCVTokens { get; } = new Dictionary<int, string>();
 
-		public CertCentralCAPlugin()
+		public CertCentralCAPlugin(IDomainValidatorFactory domainValidatorFactory)
 		{
-			_logger = LogHandler.GetClassLogger<CertCentralCAPlugin>();
+			_domainValidatorFactory = domainValidatorFactory;
 		}
 		public void Initialize(IAnyCAPluginConfigProvider configProvider, ICertificateDataReader certificateDataReader)
 		{
@@ -254,31 +256,26 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			string dcvMethod = "email";
 
-			// AnyGateway Core does not currently support retreiving DCV tokens, the following code block can be uncommented once support is added.
-
-			//if (productInfo.ProductParameters.TryGetValue(DigiCertConstants.RequestAttributes.DCV_METHOD, out string rawDCV))
-			//{
-			//	Logger.Trace($"Parsing DCV method: {rawDCV}");
-			//	if (rawDCV.IndexOf("mail", StringComparison.OrdinalIgnoreCase) >= 0)
-			//	{
-			//		Logger.Trace("Selecting DCV method 'email'");
-			//		dcvMethod = "email";
-			//	}
-			//	else if (rawDCV.IndexOf("dns", StringComparison.OrdinalIgnoreCase) >= 0)
-			//	{
-			//		Logger.Trace("Selecting DCV method 'dns-txt-token'");
-			//		dcvMethod = "dns-txt-token";
-			//	}
-			//	else if (rawDCV.IndexOf("http", StringComparison.OrdinalIgnoreCase) >= 0)
-			//	{
-			//		Logger.Trace("Selecting DCV method 'http-token'");
-			//		dcvMethod = "http-token";
-			//	}
-			//	else
-			//	{
-			//		Logger.Warn($"Unexpected DCV method '{rawDCV}'. Falling back to default of 'email'");
-			//	}
-			//}
+			if (string.Equals(_config.DnsValidationMethod, "email", StringComparison.OrdinalIgnoreCase))
+			{
+				_logger.LogTrace($"Selecting DCV method 'email'");
+				dcvMethod = "email";
+			}
+			else if (string.Equals(_config.DnsValidationMethod, "txt", StringComparison.OrdinalIgnoreCase))
+			{
+				_logger.LogTrace($"Selecting DCV method 'dns-txt-token'");
+				dcvMethod = "dns-txt-token";
+			}
+			else if (string.Equals(_config.DnsValidationMethod, "cname", StringComparison.OrdinalIgnoreCase))
+			{
+				_logger.LogTrace($"Selecting DCV method 'dns-cname-token'");
+				dcvMethod = "dns-cname-token";
+			}
+			else
+			{
+				_logger.LogWarning($"Unexpeted DCV method '{_config.DnsValidationMethod}'. Falling back to default of 'email'");
+				dcvMethod = "email";
+			}
 
 			orderRequest.DCVMethod = dcvMethod;
 
@@ -392,7 +389,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 
 			if (dupe)
 			{
-				return await Duplicate(client, productInfo, priorCertReqID, commonName, csr, dnsNames, signatureHash, caCertId);
+				return await Duplicate(client, productInfo, priorCertReqID, commonName, csr, dnsNames, signatureHash, caCertId, dcvMethod);
 			}
 
 			// Check if the order has more validity in it (multi-year cert). If so, do a reissue instead of a renew
@@ -439,13 +436,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			switch (enrollmentType)
 			{
 				case EnrollmentType.New:
-					return await NewCertificate(client, orderRequest, commonName);
+					return await NewCertificate(client, orderRequest, commonName, dcvMethod);
 
 				case EnrollmentType.Reissue:
-					return await Reissue(client, productInfo, priorCertReqID, commonName, csr, dnsNames, signatureHash, caCertId);
+					return await Reissue(client, productInfo, priorCertReqID, commonName, csr, dnsNames, signatureHash, caCertId, dcvMethod);
 
 				case EnrollmentType.Renew:
-					return await Renew(client, orderRequest, productInfo, priorCertReqID, commonName);
+					return await Renew(client, orderRequest, productInfo, priorCertReqID, commonName, dcvMethod);
 
 				default:
 					throw new Exception($"The enrollment type '{enrollmentType}' is invalid for the DigiCert gateway.");
@@ -523,6 +520,26 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					Hidden = false,
 					DefaultValue = 30,
 					Type = "Number"
+				},
+				[CertCentralConstants.Config.DNS_VALIDATION_METHOD] = new PropertyConfigInfo()
+				{
+					Comments = "The DNS validation method to use. Default value is 'email'. Other valid values are 'txt' and 'cname' " +
+							   "If using automated DNS validation, 'txt' is the preferred method.",
+					Hidden = false,
+					DefaultValue = "email",
+					Type = "String"
+				},
+				[CertCentralConstants.Config.DNS_VALIDATION_ENABLED] = new PropertyConfigInfo()
+				{
+					Comments = "Enable automated DNS (TXT or CNAME) domain control validation. When enabled, the plugin " +
+							   "requests TXT-based validation from DigiCert and publishes the returned record via the " +
+							   "DNS provider plugin resolved by the AnyCA Gateway. Requires a DNS provider plugin (e.g. Azure, " +
+							   "Cloudflare, etc) to be deployed and configured on the gateway. When disabled, requests that require validation " +
+							   "will be flagged as External Validation, and the validation token, if needed depending on the DNS Validation method, " +
+							   "will be returned.",
+					Hidden = false,
+					DefaultValue = false,
+					Type = "Boolean"
 				},
 				[CertCentralConstants.Config.ENABLED] = new PropertyConfigInfo()
 				{
@@ -1181,10 +1198,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		/// <param name="request">The request to order a certificate.</param>
 		/// <param name="commonName">The common name.</param>
 		/// <returns>The <see cref="EnrollmentResult"/> containing the result of the enrollment request</returns>
-		private async Task<EnrollmentResult> NewCertificate(CertCentralClient client, OrderRequest request, string commonName)
+		private async Task<EnrollmentResult> NewCertificate(CertCentralClient client, OrderRequest request, string commonName, string dcvMethod)
 		{
 			_logger.LogTrace("Attempting to enroll for a certificate.");
-			return await ExtractEnrollmentResult(client, client.OrderCertificate(request), commonName);
+			return await ExtractEnrollmentResult(client, client.OrderCertificate(request), commonName, dcvMethod);
 		}
 
 		private async Task<EnrollmentResult> NewSmimeCertificate(CertCentralClient client, OrderSmimeRequest request)
@@ -1197,12 +1214,13 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		/// <summary>
 		/// Gets the enrollment result from an <see cref="OrderResponse"/> object.
 		/// </summary>
-		private async Task<EnrollmentResult> ExtractEnrollmentResult(CertCentralClient client, OrderResponse orderResponse, string commonName)
+		private async Task<EnrollmentResult> ExtractEnrollmentResult(CertCentralClient client, OrderResponse orderResponse, string commonName, string dcvMethod)
 		{
 			int status = 0;
 			string statusMessage = null;
 			string certificate = null;
 			string caRequestID = null;
+			Dictionary<string, string> context = new Dictionary<string, string>();
 
 			if (orderResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 			{
@@ -1242,6 +1260,91 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 					_logger.LogTrace($"Certificate for order {orderResponse.OrderId} is being processed by DigiCert. Most likely a domain/organization requires further validation");
 					if (!string.IsNullOrEmpty(orderResponse.DCVRandomValue))
 					{
+						if (!_config.DnsValidationEnabled)
+						{
+							_logger.LogTrace($"Automated DNS validation not enabled. Returning DCV token in enrollment context");
+							context.Add(dcvMethod, orderResponse.DCVRandomValue);
+						}
+						else
+						{
+							if (_domainValidatorFactory == null)
+							{
+								_logger.LogError($"Automated DNS validation enabled by the AnyCA Gateway did not inject an IDomainValidatorFactory.");
+								throw new Exception($"DNS validation enabled but no DNS provider detected. Check your configuration");
+							}
+							string validType = "";
+							if (string.Equals(dcvMethod, "dns-txt-token"))
+								validType = "dns-01";
+							else if (string.Equals(dcvMethod, "dns-cname-token"))
+								validType = "cname";
+							else
+								throw new Exception($"For automated DNS validation, validation type must be either 'txt' or 'cname'");
+
+							List<string> domains = new List<string>();
+							domains.Add(certificateOrderResponse.certificate.common_name);
+							domains.AddRange(certificateOrderResponse.certificate.dns_names);
+
+							List<string> errors = new List<string>();
+							foreach (var dom in domains)
+							{
+								IDomainValidator validator;
+								try
+								{
+									validator = _domainValidatorFactory.ResolveDomainValidator(dom, validType);
+								}
+								catch (Exception ex)
+								{
+									errors.Add($"Failed to resolve DNS provider plugin for '{dom}' (validation type '{validType}'\nError: {ex.Message}");
+									continue;
+								}
+
+								DomainValidationResult result = null;
+								if (validType.Equals("dns-01"))
+								{
+									result = await validator.StageValidation(dom, orderResponse.DCVRandomValue, CancellationToken.None);
+								}
+								else
+								{
+									result = await validator.StageValidation("_dnsauth", $"{orderResponse.DCVRandomValue}.dcv.digicert.com", CancellationToken.None);
+								}
+
+								if (result == null || !result.Success)
+								{
+									var msg = result?.ErrorMessage ?? "unknown error";
+									errors.Add($"Failed to publish DNS validation record for '{dom}': {msg}");
+								}
+								else
+								{
+									_logger.LogInformation($"Published DNS validation record for '{dom}'");
+								}
+							}
+
+							var dcvcheck = client.DVCheckDCV(new DVCheckDCVRequest((int)orderID));
+							if (dcvcheck.Status == CertCentralBaseResponse.StatusType.ERROR)
+							{
+								if (errors.Count > 0)
+								{
+									_logger.LogError($"Domain Validation Errors:\n{string.Join('\n', errors)}");
+									string err = string.Join(';', errors);
+									statusMessage = err;
+								}
+								else
+								{
+									string msg = $"Domain validation(s) still pending. Certificate will be picked up on future sync.";
+									_logger.LogWarning(msg);
+								}
+								status = (int)EndEntityStatus.EXTERNALVALIDATION;
+							}
+							else
+							{
+								var certChain = client.GetCertificateChain(new CertificateChainRequest(orderResponse.CertificateId.Value.ToString()));
+								string certPem = certChain.Intermediates.SingleOrDefault(c => c.SubjectCommonName.Equals(commonName, StringComparison.OrdinalIgnoreCase))?.PEM;
+								certificate = certPem;
+								ViewCertificateOrderResponse newCertificateOrderResponse = client.ViewCertificateOrder(new ViewCertificateOrderRequest(orderID));
+
+								status = GetCertificateStatusFromCA(newCertificateOrderResponse.status, (int)orderID);
+							}
+						}
 						_logger.LogDebug($"Saving DCV token for order {orderResponse.OrderId}");
 						DCVTokens[orderResponse.OrderId] = orderResponse.DCVRandomValue;
 					}
@@ -1313,7 +1416,8 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				CARequestID = caRequestID,
 				Certificate = certificate,
 				Status = status,
-				StatusMessage = statusMessage
+				StatusMessage = statusMessage,
+				EnrollmentContext = context
 			};
 		}
 
@@ -1521,7 +1625,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		/// <param name="request">The <see cref="OrderRequest"/>.</param>
 		/// <param name="enrollmentProductInfo">Information about the DigiCert product this certificate uses.</param>
 		/// <returns></returns>
-		private async Task<EnrollmentResult> Reissue(CertCentralClient client, EnrollmentProductInfo enrollmentProductInfo, string caRequestId, string commonName, string csr, List<string> dnsNames, string signatureHash, string caCertId)
+		private async Task<EnrollmentResult> Reissue(CertCentralClient client, EnrollmentProductInfo enrollmentProductInfo, string caRequestId, string commonName, string csr, List<string> dnsNames, string signatureHash, string caCertId, string dcvMethod)
 		{
 			CheckProductExistence(enrollmentProductInfo.ProductID);
 
@@ -1553,7 +1657,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			};
 
 			_logger.LogTrace("Attempting to reissue certificate.");
-			return await ExtractEnrollmentResult(client, client.ReissueCertificate(reissueRequest), commonName);
+			return await ExtractEnrollmentResult(client, client.ReissueCertificate(reissueRequest), commonName, dcvMethod);
 		}
 
 		/// <summary>
@@ -1563,7 +1667,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		/// <param name="request">The <see cref="OrderRequest"/>.</param>
 		/// <param name="enrollmentProductInfo">Information about the DigiCert product this certificate uses.</param>
 		/// <returns></returns>
-		private async Task<EnrollmentResult> Duplicate(CertCentralClient client, EnrollmentProductInfo enrollmentProductInfo, string caRequestId, string commonName, string csr, List<string> dnsNames, string signatureHash, string caCertId)
+		private async Task<EnrollmentResult> Duplicate(CertCentralClient client, EnrollmentProductInfo enrollmentProductInfo, string caRequestId, string commonName, string csr, List<string> dnsNames, string signatureHash, string caCertId, string dcvMethod)
 		{
 			CheckProductExistence(enrollmentProductInfo.ProductID);
 
@@ -1593,7 +1697,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			};
 
 			_logger.LogTrace("Attempting to duplicate certificate.");
-			return await ExtractEnrollmentResult(client, client.DuplicateCertificate(duplicateRequest), commonName);
+			return await ExtractEnrollmentResult(client, client.DuplicateCertificate(duplicateRequest), commonName, dcvMethod);
 		}
 
 		/// <summary>
@@ -1619,7 +1723,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		/// <param name="request">The <see cref="OrderRequest"/>.</param>
 		/// <param name="enrollmentProductInfo">Information about the DigiCert product this certificate uses.</param>
 		/// <returns></returns>
-		private async Task<EnrollmentResult> Renew(CertCentralClient client, OrderRequest request, EnrollmentProductInfo enrollmentProductInfo, string caRequestId, string commonName)
+		private async Task<EnrollmentResult> Renew(CertCentralClient client, OrderRequest request, EnrollmentProductInfo enrollmentProductInfo, string caRequestId, string commonName, string dcvMethod)
 		{
 			CheckProductExistence(enrollmentProductInfo.ProductID);
 
@@ -1637,7 +1741,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			request.RenewalOfOrderId = orderId;
 
 			_logger.LogTrace($"Attempting to renew certificate with order id {orderId}.");
-			return await ExtractEnrollmentResult(client, client.OrderCertificate(request), commonName);
+			return await ExtractEnrollmentResult(client, client.OrderCertificate(request), commonName, dcvMethod);
 		}
 
 		private async Task<EnrollmentResult> RenewSmime(CertCentralClient client, OrderSmimeRequest request, EnrollmentProductInfo enrollmentProductInfo, string caRequestId)
