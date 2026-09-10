@@ -969,7 +969,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 							cancelToken.ThrowIfCancellationRequested();
 							string caReqId = order.order_id + "-" + order.certificate_id;
 							orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters, productFilters);
-							if (orderCerts == null || orderCerts.Count > 0)
+							if (orderCerts == null || orderCerts.Count == 0)
 							{
 								continue;
 							}
