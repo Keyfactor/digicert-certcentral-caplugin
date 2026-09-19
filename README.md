@@ -41,7 +41,7 @@ The Digicert CertCentral AnyCA REST plugin extends the capabilities of Digicert'
 
 ## Compatibility
 
-The DigiCert CertCentral AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gateway REST 24.2.0 and later.
+The DigiCert CertCentral AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gateway REST 26.2.0 and later.
 
 ## Support
 The DigiCert CertCentral AnyCA Gateway REST plugin is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket with your Keyfactor representative. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com. 
@@ -94,6 +94,8 @@ An API Key within your Digicert account that has the necessary permissions to en
         * **SyncProductFilter** - If you list one or more Product IDs here (comma-separated), the sync process will filter records to only return orders of those product types. Leave empty to sync all products. 
         * **FilterExpiredOrders** - If set to 'true', syncing will apply a filter to not return orders that are expired for longer than specified in SyncExpirationDays. 
         * **SyncExpirationDays** - If FilterExpiredOrders is set to true, this setting determines how many days in the past to still return expired orders. For example, a value of 30 means the sync will return any certs that expired within the past 30 days. A value of 0 means the sync will not return any certs that expired before the current day. This value is ignored if FilterExpiredOrders is false. 
+        * **DnsValidationMethod** - The DNS validation method to use. Default value is 'email'. Other valid values are 'txt' and 'cname' If using automated DNS validation, 'txt' is the preferred method. 
+        * **DnsValidationEnabled** - Enable automated DNS (TXT or CNAME) domain control validation. When enabled, the plugin requests TXT-based validation from DigiCert and publishes the returned record via the DNS provider plugin resolved by the AnyCA Gateway. Requires a DNS provider plugin (e.g. Azure, Cloudflare, etc) to be deployed and configured on the gateway. When disabled, requests that require validation will be flagged as External Validation, and the validation token, if needed depending on the DNS Validation method, will be returned. 
         * **Enabled** - Flag to Enable or Disable gateway functionality. Disabling is primarily used to allow creation of the CA prior to configuration information being available. 
 
 2. Note for SMIME product types (Secure Email types): The template configuration fields provided for those are not required to be filled out in the gateway config. Many of those values would change on a per-enrollment basis. The way to handle that is to create Enrollment fields in Command with the same name (for example: CommonNameIndicator) and then any values populated in those fields will override any static values provided in the configuration.
