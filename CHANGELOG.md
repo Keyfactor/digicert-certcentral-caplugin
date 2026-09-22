@@ -42,3 +42,4 @@
 
 ### 2.5.0  
 * Fix for checking if product is a DV cert to ignore organization checks  
+* Performance enhancements to reduce API calls  
