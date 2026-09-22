@@ -45,3 +45,4 @@
 * Performance enhancements to reduce API calls  
 * Added null checks/error handling to catch bad certs on sync  
 * Improved rate limiting handling based on DigiCert guidance  
+* Improved handling of API error responses  
