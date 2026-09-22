@@ -1733,6 +1733,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 						CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest($"{cert.certificate_id}"));
 						if (certificateChainResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
 						{
+							if (certificateChainResponse.Intermediates == null || certificateChainResponse.Intermediates.Count == 0)
+							{
+								throw new Exception($"DigiCert returned an empty certificate chain for certificate {cert.certificate_id} on order {orderId}.");
+							}
 							certificate = certificateChainResponse.Intermediates[0].PEM;
 						}
 						else
@@ -1741,12 +1745,15 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 						}
 					}
 					//Another check for duplicate PEMs to get arround issue with DigiCert API returning incorrect data sometimes on reissued/duplicate certs
-					if (pemList.Contains(certificate))
+					if (certificate != null && pemList.Contains(certificate))
 					{
 						_logger.LogWarning($"Found duplicate PEM for ID {caReqId}. Skipping...");
 						continue;
 					}
-					pemList.Add(certificate);
+					if (certificate != null)
+					{
+						pemList.Add(certificate);
+					}
 					var connCert = new AnyCAPluginCertificate
 					{
 						CARequestID = caReqId,
