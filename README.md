@@ -79,6 +79,15 @@ An API Key within your Digicert account that has the necessary permissions to en
     * **Gateway Registration**
 
         In order to enroll for certificates the Keyfactor Command server must trust the trust chain. Once you identify your Root and/or Subordinate CA in your Digicert account, make sure to download and import the certificate chain into the Command Server certificate store
+        
+        ### Automated DNS Domain Validation
+        
+        This plugin integrates with the AnyCA Gateway **DNS provider plugin framework** (`KeyfactorAnyGateway.IAnyCAPlugin` 3.3.0+). DNS provider plugins (Azure DNS, AWS Route53, Cloudflare, Google Cloud DNS, etc.) are deployed and configured **separately** on the gateway; this CA plugin does not bundle any DNS provider SDKs. The gateway injects an `IDomainValidatorFactory` that resolves the correct provider for each domain at enrollment time.
+        
+        DigiCert supports both **TXT** and **CNAME** records for DNS validation, the choice of which is provided by the appropriate configuration field. **TXT** records are the preferred method.
+        
+        `DnsValidationMethod` defines whether you wish to use TXT, CNAME, or email validation. Only TXT or CNAME will work with the automated validation.
+        `DnsValidationEnabled` determines whether to use the automated validation. Make sure you have the necessary DNS plugins installed and configured before enabling. If `DnsValidationMethod` is set to either TXT or CNAME but `DnsValidationEnabled` is false, then unvalidated enrollment requests will get a status of External Validation, and the necessary TXT or CNAME token will be instead returned to the enrollment caller to be used to manually update the DNS record.
 
     * **CA Connection**
 
