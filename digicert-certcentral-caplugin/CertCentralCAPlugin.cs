@@ -546,7 +546,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 				[CertCentralConstants.Config.DNS_VALIDATION_ENABLED] = new PropertyConfigInfo()
 				{
 					Comments = "Enable automated DNS (TXT or CNAME) domain control validation. When enabled, the plugin " +
-							   "requests TXT-based validation from DigiCert and publishes the returned record via the " +
+							   "requests TXT-based or CNAME-based validation from DigiCert and publishes the returned record via the " +
 							   "DNS provider plugin resolved by the AnyCA Gateway. Requires a DNS provider plugin (e.g. Azure, " +
 							   "Cloudflare, etc) to be deployed and configured on the gateway. When disabled, requests that require validation " +
 							   "will be flagged as External Validation, and the validation token, if needed depending on the DNS Validation method, " +

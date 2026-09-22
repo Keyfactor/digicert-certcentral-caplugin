@@ -48,3 +48,6 @@
 * Improved handling of API error responses  
 * Fixes for sync filtering  
 * Incremental sync fix  
+
+### 3.0.0  
+* Add support for automated domain validation via DNS gateway plugins.  
