@@ -174,7 +174,21 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			CertCentralClient client = CertCentralClientUtilities.BuildCertCentralClient(_config);
 			int? organizationId = null;
 			// DV certs have no organization, so only do the org check if its a non-DV cert
-			if (!string.Equals(productInfo.ProductID, CertCentralConstants.ProductTypes.DV_SSL_CERT, StringComparison.OrdinalIgnoreCase))
+
+			// Get product ID details.
+			CertificateTypeDetailsRequest detailsRequest = new CertificateTypeDetailsRequest(productInfo.ProductID);
+
+			// For pulling product ID details, we use the Connection-level Division ID rather than the template-level one.
+			detailsRequest.ContainerId = null;
+			if (_config.DivisionId.HasValue)
+			{
+				detailsRequest.ContainerId = _config.DivisionId.Value;
+			}
+
+			CertificateTypeDetailsResponse details = client.GetCertificateTypeDetails(detailsRequest);
+
+			// Only do org check if the product type is NOT the group dv_ssl_certificate (https://dev.digicert.com/certcentral-apis/services-api/glossary.html#product-identifiers)
+			if (!string.Equals(details.GroupName, CertCentralConstants.ProductTypes.DV_SSL_CERT, StringComparison.OrdinalIgnoreCase))
 			{
 				if (organization == null)
 				{

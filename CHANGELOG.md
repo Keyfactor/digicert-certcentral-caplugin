@@ -39,3 +39,6 @@
 
 ### 2.4.1  
 * Fix for missing parameter errors  
+
+### 2.5.0  
+* Fix for checking if product is a DV cert to ignore organization checks  
