@@ -47,3 +47,4 @@
 * Improved rate limiting handling based on DigiCert guidance  
 * Improved handling of API error responses  
 * Fixes for sync filtering  
+* Incremental sync fix  
