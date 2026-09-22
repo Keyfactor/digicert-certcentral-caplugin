@@ -44,6 +44,8 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			public const string LAST_NAME = "LastName";
 			public const string PSEUDONYM = "Pseudonym";
 			public const string SMIME_USAGE = "UsageDesignation";
+			public const string DNS_VALIDATION_METHOD = "DnsValidationMethod";
+			public const string DNS_VALIDATION_ENABLED = "DnsValidationEnabled";
 		}
 
 		public class RequestAttributes

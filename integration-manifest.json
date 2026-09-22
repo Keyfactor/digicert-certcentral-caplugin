@@ -7,7 +7,7 @@
     "link_github": true,
     "update_catalog": true,
     "description": "DigiCert CertCentral plugin for the AnyCA REST Gateway framework",
-    "gateway_framework": "24.2.0",
+    "gateway_framework": "26.2.0",
     "release_dir": "digicert-certcentral-caplugin/bin/Release",
     "release_project": "digicert-certcentral-caplugin/digicert-certcentral-caplugin.csproj",
     "about": {
@@ -49,6 +49,14 @@
                 {
                     "name": "SyncExpirationDays",
                     "description": "If FilterExpiredOrders is set to true, this setting determines how many days in the past to still return expired orders. For example, a value of 30 means the sync will return any certs that expired within the past 30 days. A value of 0 means the sync will not return any certs that expired before the current day. This value is ignored if FilterExpiredOrders is false."
+                },
+                {
+                    "name": "DnsValidationMethod",
+                    "description": "The DNS validation method to use. Default value is 'email'. Other valid values are 'txt' and 'cname' If using automated DNS validation, 'txt' is the preferred method."
+                },
+                {
+                    "name": "DnsValidationEnabled",
+                    "description": "Enable automated DNS (TXT or CNAME) domain control validation. When enabled, the plugin requests TXT-based validation from DigiCert and publishes the returned record via the DNS provider plugin resolved by the AnyCA Gateway. Requires a DNS provider plugin (e.g. Azure, Cloudflare, etc) to be deployed and configured on the gateway. When disabled, requests that require validation will be flagged as External Validation, and the validation token, if needed depending on the DNS Validation method, will be returned."
                 },
                 {
                     "name": "Enabled",
