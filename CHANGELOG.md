@@ -39,3 +39,15 @@
 
 ### 2.4.1  
 * Fix for missing parameter errors  
+
+### 2.5.0  
+* Fix for checking if product is a DV cert to ignore organization checks  
+* Performance enhancements to reduce API calls  
+* Added null checks/error handling to catch bad certs on sync  
+* Improved rate limiting handling based on DigiCert guidance  
+* Improved handling of API error responses  
+* Fixes for sync filtering  
+* Incremental sync fix  
+
+### 3.0.0  
+* Add support for automated domain validation via DNS gateway plugins.  
