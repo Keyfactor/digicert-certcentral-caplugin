@@ -72,8 +72,14 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 		}
 
 		private static int RequestIDCounter = 1;
+		private const int MaxRateLimitRetries = 3;
 
 		private CertCentralResponse Request(CertCentralBaseRequest request, string parameters)
+		{
+			return Request(request, parameters, 1);
+		}
+
+		private CertCentralResponse Request(CertCentralBaseRequest request, string parameters, int attempt)
 		{
 			//set in config files
 			//ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
@@ -129,10 +135,25 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert.Client
 					{
 						if (errorResponse.StatusCode == (HttpStatusCode)429/*Too Many Requests*/)
 						{
-							Logger.LogInformation($"Request ID: {reqID} was rate-limited. Trying again in 5 seconds");
-							// TODO - Figure out how long to wait, then wait that long
-							System.Threading.Thread.Sleep(5000);
-							return Request(request, parameters);
+							// DigiCert's documented limits are 1000 requests / 3 minutes AND 100 requests / 5 seconds,
+							// rolling, per API key.
+							// Guidance is exponential backoff with a default maximum of 3 retries.
+							if (attempt >= MaxRateLimitRetries)
+							{
+								Logger.LogWarning($"Request ID: {reqID} was rate-limited by DigiCert and has exhausted {MaxRateLimitRetries} attempts. Giving up.");
+								using (var limitReader = new StreamReader(errorResponse.GetResponseStream()))
+								{
+									oCertCertResponse.Success = false;
+									oCertCertResponse.Response = limitReader.ReadToEnd();
+								}
+							}
+							else
+							{
+								int waitSeconds = 5 * (int)Math.Pow(2, attempt - 1);
+								Logger.LogInformation($"Request ID: {reqID} was rate-limited. Retry {attempt} of {MaxRateLimitRetries - 1} in {waitSeconds} seconds");
+								System.Threading.Thread.Sleep(waitSeconds * 1000);
+								return Request(request, parameters, attempt + 1);
+							}
 						}
 						else
 						{
