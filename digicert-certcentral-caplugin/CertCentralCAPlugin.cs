@@ -174,7 +174,21 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			CertCentralClient client = CertCentralClientUtilities.BuildCertCentralClient(_config);
 			int? organizationId = null;
 			// DV certs have no organization, so only do the org check if its a non-DV cert
-			if (!string.Equals(productInfo.ProductID, CertCentralConstants.ProductTypes.DV_SSL_CERT, StringComparison.OrdinalIgnoreCase))
+
+			// Get product ID details.
+			CertificateTypeDetailsRequest detailsRequest = new CertificateTypeDetailsRequest(productInfo.ProductID);
+
+			// For pulling product ID details, we use the Connection-level Division ID rather than the template-level one.
+			detailsRequest.ContainerId = null;
+			if (_config.DivisionId.HasValue)
+			{
+				detailsRequest.ContainerId = _config.DivisionId.Value;
+			}
+
+			CertificateTypeDetailsResponse details = client.GetCertificateTypeDetails(detailsRequest);
+
+			// Only do org check if the product type is NOT the group dv_ssl_certificate (https://dev.digicert.com/certcentral-apis/services-api/glossary.html#product-identifiers)
+			if (!string.Equals(details.GroupName, CertCentralConstants.ProductTypes.DV_SSL_CERT, StringComparison.OrdinalIgnoreCase))
 			{
 				if (organization == null)
 				{
@@ -585,7 +599,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			CertCentralClient client = CertCentralClientUtilities.BuildCertCentralClient(_config);
 			ViewCertificateOrderResponse orderResponse = client.ViewCertificateOrder(new ViewCertificateOrderRequest((uint)orderId));
 
-			var orderCerts = GetAllCertsForOrder(orderId);
+			var orderCerts = GetAllCertsForOrder(orderId, orderResponse);
 
 			StatusOrder certToCheck = orderCerts.Where(c => c.certificate_id == certIdInt).First();
 
@@ -873,7 +887,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			_logger.LogTrace($"Sync CAs: {syncCAstring}");
 			List<string> caList = _config.SyncCAs;
 
-			caList.ForEach(c => c.ToUpper());
+			caList = caList.Select(c => c?.Trim().ToUpper()).Where(c => !string.IsNullOrEmpty(c)).ToList();
 
 			List<string> divFilters = new List<string>();
 			if (!string.IsNullOrEmpty(_config.SyncDivisionFilter))
@@ -969,7 +983,7 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 							cancelToken.ThrowIfCancellationRequested();
 							string caReqId = order.order_id + "-" + order.certificate_id;
 							orderCerts = GetAllConnectorCertsForOrder(caReqId, caList, divFilters, productFilters);
-							if (orderCerts == null || orderCerts.Count > 0)
+							if (orderCerts == null || orderCerts.Count == 0)
 							{
 								continue;
 							}
@@ -1699,9 +1713,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 			if (productIds != null && productIds.Count > 0 && !productIds.Contains(orderResponse.product.name_id.ToString()))
 			{
 				_logger.LogTrace($"Found order ID {orderId} that does not match Product filter. Product ID: {orderResponse.product.name_id.ToString()} Skipping...");
+				return null;
 			}
 
-			var orderCerts = GetAllCertsForOrder(orderId);
+			var orderCerts = GetAllCertsForOrder(orderId, orderResponse);
 
 			List<AnyCAPluginCertificate> certList = new List<AnyCAPluginCertificate>();
 			List<string> pemList = new List<string>();
@@ -1719,6 +1734,10 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 						CertificateChainResponse certificateChainResponse = client.GetCertificateChain(new CertificateChainRequest($"{cert.certificate_id}"));
 						if (certificateChainResponse.Status == CertCentralBaseResponse.StatusType.SUCCESS)
 						{
+							if (certificateChainResponse.Intermediates == null || certificateChainResponse.Intermediates.Count == 0)
+							{
+								throw new Exception($"DigiCert returned an empty certificate chain for certificate {cert.certificate_id} on order {orderId}.");
+							}
 							certificate = certificateChainResponse.Intermediates[0].PEM;
 						}
 						else
@@ -1727,12 +1746,15 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 						}
 					}
 					//Another check for duplicate PEMs to get arround issue with DigiCert API returning incorrect data sometimes on reissued/duplicate certs
-					if (pemList.Contains(certificate))
+					if (certificate != null && pemList.Contains(certificate))
 					{
 						_logger.LogWarning($"Found duplicate PEM for ID {caReqId}. Skipping...");
 						continue;
 					}
-					pemList.Add(certificate);
+					if (certificate != null)
+					{
+						pemList.Add(certificate);
+					}
 					var connCert = new AnyCAPluginCertificate
 					{
 						CARequestID = caReqId,
@@ -1757,10 +1779,12 @@ namespace Keyfactor.Extensions.CAPlugin.DigiCert
 		/// <param name="orderId"></param>
 		/// <returns></returns>
 		/// <exception cref="COMException"></exception>
-		private List<StatusOrder> GetAllCertsForOrder(int orderId)
+		private List<StatusOrder> GetAllCertsForOrder(int orderId, ViewCertificateOrderResponse existingOrderResponse = null)
 		{
 			CertCentralClient client = CertCentralClientUtilities.BuildCertCentralClient(_config);
-			ViewCertificateOrderResponse orderResponse = client.ViewCertificateOrder(new ViewCertificateOrderRequest((uint)orderId));
+
+			// If the caller provides an existing order response, reuse that to save the API call.
+			ViewCertificateOrderResponse orderResponse =  existingOrderResponse ?? client.ViewCertificateOrder(new ViewCertificateOrderRequest((uint)orderId));
 			if (orderResponse.Status == CertCentralBaseResponse.StatusType.ERROR)
 			{
 				string errorMessage = String.Format("Request {0} was not found in CertCentral database or is not valid", orderId);
