@@ -11,7 +11,7 @@ on:
 
 jobs:
   call-starter-workflow:
-    uses: keyfactor/actions/.github/workflows/starter.yml@v4
+    uses: keyfactor/actions/.github/workflows/starter.yml@v5
     secrets:
       token: ${{ secrets.V2BUILDTOKEN}}
       scan_token: ${{ secrets.SAST_TOKEN }}

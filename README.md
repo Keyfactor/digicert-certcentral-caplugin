@@ -14,7 +14,7 @@
   <!-- TOC -->
   <a href="#support">
     <b>Support</b>
-  </a> 
+  </a>
   ·
   <a href="#requirements">
     <b>Requirements</b>
@@ -33,7 +33,6 @@
   </a>
 </p>
 
-
 The Digicert CertCentral AnyCA REST plugin extends the capabilities of Digicert's CertCentral product to Keyfactor Command via the Keyfactor AnyCA Gateway REST. The plugin represents a fully featured AnyCA REST Plugin with the following capabilies:
 * SSL Certificate Synchronization
 * SSL Certificate Enrollment
@@ -41,10 +40,10 @@ The Digicert CertCentral AnyCA REST plugin extends the capabilities of Digicert'
 
 ## Compatibility
 
-The DigiCert CertCentral AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gateway REST 24.2.0 and later.
+The DigiCert CertCentral AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gateway REST 26.2.0 and later.
 
 ## Support
-The DigiCert CertCentral AnyCA Gateway REST plugin is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket with your Keyfactor representative. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com. 
+The DigiCert CertCentral AnyCA Gateway REST plugin is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com.
 
 > To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
 
@@ -58,16 +57,16 @@ An API Key within your Digicert account that has the necessary permissions to en
 
 2. On the server hosting the AnyCA Gateway REST, download and unzip the latest [DigiCert CertCentral AnyCA Gateway REST plugin](https://github.com/Keyfactor/digicert-certcentral-caplugin/releases/latest) from GitHub.
 
-3. Copy the unzipped directory (usually called `net6.0` or `net8.0`) to the Extensions directory:
+3. Copy the unzipped directory (usually called `net8.0` or `net10.0`) to the Extensions directory:
 
 
     ```shell
     Depending on your AnyCA Gateway REST version, copy the unzipped directory to one of the following locations:
-    Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions
     Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net8.0\Extensions
+    Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net10.0\Extensions
     ```
 
-    > The directory containing the DigiCert CertCentral AnyCA Gateway REST plugin DLLs (`net6.0` or `net8.0`) can be named anything, as long as it is unique within the `Extensions` directory.
+    > The directory containing the DigiCert CertCentral AnyCA Gateway REST plugin DLLs (`net8.0` or `net10.0`) can be named anything, as long as it is unique within the `Extensions` directory.
 
 4. Restart the AnyCA Gateway REST service.
 
@@ -80,21 +79,32 @@ An API Key within your Digicert account that has the necessary permissions to en
     * **Gateway Registration**
 
         In order to enroll for certificates the Keyfactor Command server must trust the trust chain. Once you identify your Root and/or Subordinate CA in your Digicert account, make sure to download and import the certificate chain into the Command Server certificate store
+        
+        ### Automated DNS Domain Validation
+        
+        This plugin integrates with the AnyCA Gateway **DNS provider plugin framework** (`KeyfactorAnyGateway.IAnyCAPlugin` 3.3.0+). DNS provider plugins (Azure DNS, AWS Route53, Cloudflare, Google Cloud DNS, etc.) are deployed and configured **separately** on the gateway; this CA plugin does not bundle any DNS provider SDKs. The gateway injects an `IDomainValidatorFactory` that resolves the correct provider for each domain at enrollment time.
+        
+        DigiCert supports both **TXT** and **CNAME** records for DNS validation, the choice of which is provided by the appropriate configuration field. **TXT** records are the preferred method.
+        
+        `DnsValidationMethod` defines whether you wish to use TXT, CNAME, or email validation. Only TXT or CNAME will work with the automated validation.
+        `DnsValidationEnabled` determines whether to use the automated validation. Make sure you have the necessary DNS plugins installed and configured before enabling. If `DnsValidationMethod` is set to either TXT or CNAME but `DnsValidationEnabled` is false, then unvalidated enrollment requests will get a status of External Validation, and the necessary TXT or CNAME token will be instead returned to the enrollment caller to be used to manually update the DNS record.
 
     * **CA Connection**
 
         Populate using the configuration fields collected in the [requirements](#requirements) section.
 
-        * **APIKey** - API Key for connecting to DigiCert 
-        * **DivisionId** - Division ID to use for retrieving product details (only if account is configured with per-divison product settings) 
-        * **Region** - The geographic region that your DigiCert CertCentral account is in. Valid options are US and EU. 
-        * **RevokeCertificateOnly** - Default DigiCert behavior on revocation requests is to revoke the entire order. If this value is changed to 'true', revocation requests will instead just revoke the individual certificate. 
-        * **SyncCAFilter** - If you list one or more CA IDs here (comma-separated), the sync process will only sync records from those CAs. If you want to sync all CA IDs, leave this field empty. 
-        * **SyncDivisionFilter** - If you list one or more Divison IDs (also known as Container IDs) here (comma-separated), the sync process will filter records to only return orders from those divisions. If you want to sync all divisions, leave this field empty. Note that this has no relationship to the value of the DivisionId config field. 
-        * **SyncProductFilter** - If you list one or more Product IDs here (comma-separated), the sync process will filter records to only return orders of those product types. Leave empty to sync all products. 
-        * **FilterExpiredOrders** - If set to 'true', syncing will apply a filter to not return orders that are expired for longer than specified in SyncExpirationDays. 
-        * **SyncExpirationDays** - If FilterExpiredOrders is set to true, this setting determines how many days in the past to still return expired orders. For example, a value of 30 means the sync will return any certs that expired within the past 30 days. A value of 0 means the sync will not return any certs that expired before the current day. This value is ignored if FilterExpiredOrders is false. 
-        * **Enabled** - Flag to Enable or Disable gateway functionality. Disabling is primarily used to allow creation of the CA prior to configuration information being available. 
+        * **APIKey** - API Key for connecting to DigiCert
+        * **DivisionId** - Division ID to use for retrieving product details (only if account is configured with per-divison product settings)
+        * **Region** - The geographic region that your DigiCert CertCentral account is in. Valid options are US and EU.
+        * **RevokeCertificateOnly** - Default DigiCert behavior on revocation requests is to revoke the entire order. If this value is changed to 'true', revocation requests will instead just revoke the individual certificate.
+        * **SyncCAFilter** - If you list one or more CA IDs here (comma-separated), the sync process will only sync records from those CAs. If you want to sync all CA IDs, leave this field empty.
+        * **SyncDivisionFilter** - If you list one or more Divison IDs (also known as Container IDs) here (comma-separated), the sync process will filter records to only return orders from those divisions. If you want to sync all divisions, leave this field empty. Note that this has no relationship to the value of the DivisionId config field.
+        * **SyncProductFilter** - If you list one or more Product IDs here (comma-separated), the sync process will filter records to only return orders of those product types. Leave empty to sync all products.
+        * **FilterExpiredOrders** - If set to 'true', syncing will apply a filter to not return orders that are expired for longer than specified in SyncExpirationDays.
+        * **SyncExpirationDays** - If FilterExpiredOrders is set to true, this setting determines how many days in the past to still return expired orders. For example, a value of 30 means the sync will return any certs that expired within the past 30 days. A value of 0 means the sync will not return any certs that expired before the current day. This value is ignored if FilterExpiredOrders is false.
+        * **DnsValidationMethod** - The DNS validation method to use. Default value is 'email'. Other valid values are 'txt' and 'cname' If using automated DNS validation, 'txt' is the preferred method.
+        * **DnsValidationEnabled** - Enable automated DNS (TXT or CNAME) domain control validation. When enabled, the plugin requests TXT-based validation from DigiCert and publishes the returned record via the DNS provider plugin resolved by the AnyCA Gateway. Requires a DNS provider plugin (e.g. Azure, Cloudflare, etc) to be deployed and configured on the gateway. When disabled, requests that require validation will be flagged as External Validation, and the validation token, if needed depending on the DNS Validation method, will be returned.
+        * **Enabled** - Flag to Enable or Disable gateway functionality. Disabling is primarily used to allow creation of the CA prior to configuration information being available.
 
 2. Note for SMIME product types (Secure Email types): The template configuration fields provided for those are not required to be filled out in the gateway config. Many of those values would change on a per-enrollment basis. The way to handle that is to create Enrollment fields in Command with the same name (for example: CommonNameIndicator) and then any values populated in those fields will override any static values provided in the configuration.
 
@@ -102,27 +112,25 @@ An API Key within your Digicert account that has the necessary permissions to en
 
 4. In Keyfactor Command (v12.3+), for each imported Certificate Template, follow the [official documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Configuring%20Template%20Options.htm) to define enrollment fields for each of the following parameters:
 
-    * **LifetimeDays** - OPTIONAL: The number of days of validity to use when requesting certs. If not provided, default is 365. 
-    * **CACertId** - OPTIONAL: ID of issuing CA to use by DigiCert. If not provided, the default for your account will be used. 
-    * **Organization-Name** - OPTIONAL: For requests that will not have a subject (such as ACME) you can use this field to provide the organization name. Value supplied here will override any CSR values, so do not include this field if you want the organization from the CSR to be used. 
-    * **RenewalWindowDays** - OPTIONAL: The number of days from certificate expiration that the gateway should do a renewal rather than a reissue. If not provided, default is 90. 
-    * **CertType** - OPTIONAL: The type of cert to enroll for. Valid values are 'ssl' and 'client'. The value provided here must be consistant with the ProductID. If not provided, default is 'ssl'. Ignored for secure_email_* product types. 
-    * **IncludeClientAuthEKU** - OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment. NOTE: This feature is currently planned to be removed by DigiCert in March 2027. 
-    * **IncludeKDCSmartCardLogonEKU** - OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the KDC/SmartCardLogon EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment. 
-    * **IncludeIntelvProEKU** - OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Intel vPro EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment. 
-    * **EnrollDivisionId** - OPTIONAL: The division (container) ID to use for enrollments against this template. 
-    * **CommonNameIndicator** - Required for secure_email_sponsor and secure_email_organization products, ignored otherwise. Defines the source of the common name. Valid values are: email_address, given_name_surname, pseudonym, organization_name 
-    * **ProfileType** - Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Use 'multipurpose' if your cert includes any additional EKUs such as client auth. Default if not provided is dependent on product configuration within Digicert portal. 
-    * **FirstName** - Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise. 
-    * **LastName** - Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise. 
-    * **Pseudonym** - Required for secure_email_* types if CommonNameIndicator is pseudonym, ignored otherwise. 
-    * **UsageDesignation** - Required for secure_email_* types, ignored otherwise. The primary usage of the certificate. Valid values are: signing, key_management, dual_use 
-
+    * **LifetimeDays** - OPTIONAL: The number of days of validity to use when requesting certs. If not provided, default is 365.
+    * **CACertId** - OPTIONAL: ID of issuing CA to use by DigiCert. If not provided, the default for your account will be used.
+    * **Organization-Name** - OPTIONAL: For requests that will not have a subject (such as ACME) you can use this field to provide the organization name. Value supplied here will override any CSR values, so do not include this field if you want the organization from the CSR to be used.
+    * **RenewalWindowDays** - OPTIONAL: The number of days from certificate expiration that the gateway should do a renewal rather than a reissue. If not provided, default is 90.
+    * **CertType** - OPTIONAL: The type of cert to enroll for. Valid values are 'ssl' and 'client'. The value provided here must be consistant with the ProductID. If not provided, default is 'ssl'. Ignored for secure_email_* product types.
+    * **IncludeClientAuthEKU** - OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Client Authentication EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment. NOTE: This feature is currently planned to be removed by DigiCert in March 2027.
+    * **IncludeKDCSmartCardLogonEKU** - OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the KDC/SmartCardLogon EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment.
+    * **IncludeIntelvProEKU** - OPTIONAL for SSL certs, ignored otherwise. If set to 'true', SSL certs enrolled under this template will have the Intel vPro EKU added to the request. NOTE: Only one EKU option can be set for any given enrollment.
+    * **EnrollDivisionId** - OPTIONAL: The division (container) ID to use for enrollments against this template.
+    * **CommonNameIndicator** - Required for secure_email_sponsor and secure_email_organization products, ignored otherwise. Defines the source of the common name. Valid values are: email_address, given_name_surname, pseudonym, organization_name
+    * **ProfileType** - Optional for secure_email_* types, ignored otherwise. Valid values are: strict, multipurpose. Use 'multipurpose' if your cert includes any additional EKUs such as client auth. Default if not provided is dependent on product configuration within Digicert portal.
+    * **FirstName** - Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise.
+    * **LastName** - Required for secure_email_* types if CommonNameIndicator is given_name_surname, ignored otherwise.
+    * **Pseudonym** - Required for secure_email_* types if CommonNameIndicator is pseudonym, ignored otherwise.
+    * **UsageDesignation** - Required for secure_email_* types, ignored otherwise. The primary usage of the certificate. Valid values are: signing, key_management, dual_use
 
 ## Certificate Duplicates
 
 DigiCert supports the ability to duplicate existing certificate orders. To take advantage of this functionality, in Keyfactor Command, under the enrollment pattern you're using, create an Enrollment Field named 'Duplicate' of type Multiple Choice, and the values 'False', 'True'. When performing a renew operation against that enrollment pattern, set the value to True to tell the gateway to duplicate instead of renew. The field will be ignored on new enrollments.
-
 
 ## License
 
